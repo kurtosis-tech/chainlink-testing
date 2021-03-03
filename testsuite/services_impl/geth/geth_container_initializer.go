@@ -10,7 +10,7 @@ const (
 	rpcPort       = 8545
 	discoveryPort = 30303
 
-	testVolumeMountpoint = "/"
+	testVolumeMountpoint = "/test-volume"
 )
 
 // Fields are public so we can marshal them as JSON
@@ -64,7 +64,7 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 
 func (initializer GethContainerInitializer) GetStartCommand(mountedFileFilepaths map[string]string, ipPlaceholder string) ([]string, error) {
 	startCmd := []string{
-		"./geth",
+		"./cmd/geth",
 		"console",
 	}
 	return startCmd, nil
