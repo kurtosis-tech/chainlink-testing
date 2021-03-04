@@ -13,7 +13,7 @@ const (
 	discoveryPort = 30303
 
 	privateNetworkId = 9
-	testVolumeMountpoint = "/data"
+	testVolumeMountpoint = "/test-volume"
 	genesisJsonFilename = "genesis.json"
 )
 

@@ -50,7 +50,7 @@ func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.T
 
 	isAvailable := castedService.IsAvailable()
 
-	time.Sleep(90)
+	time.Sleep(time.Second * 360)
 
 	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Bootnode did not become available."))
 }
@@ -61,7 +61,7 @@ func (test *EthereumFundedTest) GetTestConfiguration() testsuite.TestConfigurati
 }
 
 func (test *EthereumFundedTest) GetExecutionTimeout() time.Duration {
-	return 60 * time.Second
+	return 360 * time.Second
 }
 
 func (test *EthereumFundedTest) GetSetupTimeout() time.Duration {
