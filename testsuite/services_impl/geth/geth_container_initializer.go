@@ -3,6 +3,8 @@ package geth
 import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/data"
+	"github.com/palantir/stacktrace"
 	"os"
 )
 
@@ -10,7 +12,9 @@ const (
 	rpcPort       = 8545
 	discoveryPort = 30303
 
-	testVolumeMountpoint = "/test-volume"
+	privateNetworkId = 9
+	testVolumeMountpoint = "/data"
+	genesisJsonFilename = "genesis.json"
 )
 
 // Fields are public so we can marshal them as JSON
@@ -47,10 +51,17 @@ func (initializer GethContainerInitializer) GetServiceWrappingFunc() func(servic
 
 func (initializer GethContainerInitializer) GetFilesToGenerate() map[string]bool {
 	return map[string]bool{
+		genesisJsonFilename: true,
 	}
 }
 
 func (initializer GethContainerInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {
+	genesisJson := data.GenesisJson
+	genesisFp := mountedFiles[genesisJsonFilename]
+	_, err := genesisFp.WriteString(genesisJson)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to write genesis config.")
+	}
 	return nil
 }
 
@@ -64,8 +75,8 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 
 func (initializer GethContainerInitializer) GetStartCommand(mountedFileFilepaths map[string]string, ipPlaceholder string) ([]string, error) {
 	startCmd := []string{
-		"./cmd/geth",
-		"console",
+		"--networkid",
+		fmt.Sprintf("%v", privateNetworkId),
 	}
 	return startCmd, nil
 }

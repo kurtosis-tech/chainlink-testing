@@ -50,6 +50,8 @@ func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.T
 
 	isAvailable := castedService.IsAvailable()
 
+	time.Sleep(90)
+
 	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Bootnode did not become available."))
 }
 
