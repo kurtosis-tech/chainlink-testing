@@ -83,30 +83,17 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 }
 
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
-	if initializer.gethBootstrapperService == nil {
-		// This is a bootstrapper
-		entrypointArgs = []string{
-			"/bin/sh",
-			"-c",
-			fmt.Sprintf("cp -r %v %v && geth --keystore %v --datadir %v --networkid %v --http --http.api admin,eth --http.corsdomain '*' --nat extip:%v",
-				gethDataMountedDirpath,
-				gethDataRuntimeDirpath,
-				fmt.Sprintf("%v%v%v", gethDataRuntimeDirpath, os.PathSeparator, keystoreFilename),
-				gethDataRuntimeDirpath,
-				privateNetworkId,
-				ipPlaceholder),
-		}
-	}
+	// This is a bootstrapper
 	entrypointArgs = []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("cp -r %v %v && geth --keystore %v --datadir %v --networkid %v --nat extip:%v",
-				gethDataMountedDirpath,
-				gethDataRuntimeDirpath,
-				fmt.Sprintf("%v%v%v", gethDataRuntimeDirpath, os.PathSeparator, keystoreFilename),
-				gethDataRuntimeDirpath,
-				privateNetworkId,
-				ipPlaceholder),
+		fmt.Sprintf("cp -r %v %v && geth --keystore %v --datadir %v --networkid %v --http --http.api admin,eth --http.corsdomain '*' --nat extip:%v",
+			gethDataMountedDirpath,
+			gethDataRuntimeDirpath,
+			fmt.Sprintf("%v%v%v", gethDataRuntimeDirpath, os.PathSeparator, keystoreFilename),
+			gethDataRuntimeDirpath,
+			privateNetworkId,
+			ipPlaceholder),
 	}
 	return entrypointArgs, nil, nil
 }
