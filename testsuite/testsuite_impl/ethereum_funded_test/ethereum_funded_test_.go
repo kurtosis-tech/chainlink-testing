@@ -14,6 +14,9 @@ const (
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxPolls = 15
+
+	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
+	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.us-east-1.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
 )
 
 type EthereumFundedTest struct {
@@ -25,7 +28,7 @@ func NewEthereumFundedTest(gethServiceImage string) *EthereumFundedTest {
 }
 
 func (test EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
-	bootnodeContainerInitializer := geth.NewGethContainerInitializer(test.gethServiceImage)
+	bootnodeContainerInitializer := geth.NewGethContainerInitializer(test.gethServiceImage, gethDataDirArtifactId)
 	_, availabilityChecker, err := networkCtx.AddService(gethBootnodeServiceId, bootnodeContainerInitializer)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred adding the bootnode")
@@ -57,14 +60,18 @@ func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.T
 
 
 func (test *EthereumFundedTest) GetTestConfiguration() testsuite.TestConfiguration {
-	return testsuite.TestConfiguration{}
+	return testsuite.TestConfiguration{
+		FilesArtifactUrls: map[services.FilesArtifactID]string{
+			gethDataDirArtifactId: gethDataDirArtifactUrl,
+		},
+	}
 }
 
 func (test *EthereumFundedTest) GetExecutionTimeout() time.Duration {
-	return 360 * time.Second
+	return 30 * time.Second
 }
 
 func (test *EthereumFundedTest) GetSetupTimeout() time.Duration {
-	return 60 * time.Second
+	return 30 * time.Second
 }
 

@@ -15,20 +15,24 @@ const (
 	privateNetworkId = 9
 	testVolumeMountpoint = "/test-volume"
 	genesisJsonFilename = "genesis.json"
-)
+	gethDataMountedDirpath = "/geth-mounted-data"
 
-// Fields are public so we can marshal them as JSON
-type config struct {
-	DatastoreIp string	`json:"datastoreIp"`
-	DatastorePort int	`json:"datastorePort"`
-}
+	// The geth node opens a socket for IPC communication in the data directory.
+	// This socket opening does not work on mounted filesystems, so runtime data directory needs to be off the mount.
+	// See: https://github.com/ethereum/go-ethereum/issues/16342
+	gethDataRuntimeDirpath = "/data"
+)
 
 type GethContainerInitializer struct {
 	dockerImage string
+	dataDirArtifactId services.FilesArtifactID
 }
 
-func NewGethContainerInitializer(dockerImage string) *GethContainerInitializer {
-	return &GethContainerInitializer{dockerImage: dockerImage}
+func NewGethContainerInitializer(dockerImage string, dataDirArtifactId services.FilesArtifactID) *GethContainerInitializer {
+	return &GethContainerInitializer{
+		dockerImage: dockerImage,
+		dataDirArtifactId: dataDirArtifactId,
+	}
 }
 
 func (initializer GethContainerInitializer) GetDockerImage() string {
@@ -43,9 +47,9 @@ func (initializer GethContainerInitializer) GetUsedPorts() map[string]bool {
 	}
 }
 
-func (initializer GethContainerInitializer) GetServiceWrappingFunc() func(serviceId services.ServiceID, ipAddr string) services.Service {
-	return func(serviceId services.ServiceID, ipAddr string) services.Service {
-		return NewGethService(serviceId, ipAddr, rpcPort);
+func (initializer GethContainerInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
+	return func(ctx *services.ServiceContext) services.Service {
+		return NewGethService(ctx, rpcPort);
 	};
 }
 
@@ -66,17 +70,25 @@ func (initializer GethContainerInitializer) InitializeGeneratedFiles(mountedFile
 }
 
 func (initializer GethContainerInitializer) GetFilesArtifactMountpoints() map[services.FilesArtifactID]string {
-	return map[services.FilesArtifactID]string{}
+	return map[services.FilesArtifactID]string{
+		initializer.dataDirArtifactId: gethDataMountedDirpath,
+	}
 }
 
 func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 	return testVolumeMountpoint
 }
 
-func (initializer GethContainerInitializer) GetStartCommand(mountedFileFilepaths map[string]string, ipPlaceholder string) ([]string, error) {
-	startCmd := []string{
-		"--networkid",
-		fmt.Sprintf("%v", privateNetworkId),
+func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+	entrypointArgs = []string{
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("cp -r %v %v && geth --datadir %v --networkid %v --nat extip:%v",
+				gethDataMountedDirpath,
+				gethDataRuntimeDirpath,
+				gethDataRuntimeDirpath,
+				privateNetworkId,
+				ipPlaceholder),
 	}
-	return startCmd, nil
+	return entrypointArgs, nil, nil
 }

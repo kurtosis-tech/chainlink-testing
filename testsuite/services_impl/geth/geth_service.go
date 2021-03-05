@@ -5,25 +5,17 @@ import (
 )
 
 type GethService struct {
-	serviceId services.ServiceID
-	ipAddr    string
+	serviceCtx *services.ServiceContext
 	rpcPort   int
 }
 
-func NewGethService(serviceId services.ServiceID, ipAddr string, port int) *GethService {
-	return &GethService{serviceId: serviceId, ipAddr: ipAddr, rpcPort: port}
+func NewGethService(serviceCtx *services.ServiceContext, port int) *GethService {
+	return &GethService{serviceCtx: serviceCtx, rpcPort: port}
 }
 
 // ===========================================================================================
 //                              Service interface methods
 // ===========================================================================================
-func (service GethService) GetServiceID() services.ServiceID {
-	return service.serviceId
-}
-
-func (service GethService) GetIPAddress() string {
-	return service.ipAddr
-}
 
 func (service GethService) IsAvailable() bool {
 	/*url := fmt.Sprintf("http://%v:%v/%v", service.GetIPAddress(), service.rpcPort)
