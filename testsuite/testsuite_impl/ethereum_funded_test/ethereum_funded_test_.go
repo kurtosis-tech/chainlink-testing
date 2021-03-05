@@ -28,7 +28,7 @@ func NewEthereumFundedTest(gethServiceImage string) *EthereumFundedTest {
 }
 
 func (test EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
-	bootnodeContainerInitializer := geth.NewGethContainerInitializer(test.gethServiceImage, gethDataDirArtifactId)
+	bootnodeContainerInitializer := geth.NewGethContainerInitializer(test.gethServiceImage, gethDataDirArtifactId, nil)
 	_, availabilityChecker, err := networkCtx.AddService(gethBootnodeServiceId, bootnodeContainerInitializer)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred adding the bootnode")

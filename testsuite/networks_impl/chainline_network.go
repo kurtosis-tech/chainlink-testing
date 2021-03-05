@@ -42,7 +42,7 @@ func (network *ChainlinkNetwork) AddBootstrapper() error {
 		return stacktrace.NewError("Cannot add bootstrapper service to network; bootstrapper already exists!")
 	}
 
-	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId)
+	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, nil)
 	uncastedDatastore, checker, err := network.networkCtx.AddService(ethereumBootstrapperId, initializer)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred adding the bootstrapper service")
