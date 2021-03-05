@@ -12,6 +12,7 @@ const (
 	rpcPort       = 8545
 	discoveryPort = 30303
 
+	httpExposedApisString = "admin,eth"
 	keystoreFilename = "keystore"
 	privateNetworkId = 9
 	testVolumeMountpoint = "/test-volume"
@@ -84,16 +85,19 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	// This is a bootstrapper
+	entrypointCommand := fmt.Sprintf("cp -r %v %v && ", gethDataMountedDirpath, gethDataRuntimeDirpath)
+	entrypointCommand += fmt.Sprintf("geth --keystore %v --datadir %v --networkid %v ",
+		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
+		gethDataRuntimeDirpath,
+		privateNetworkId)
+	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.address %v --http.corsdomain '*' --nat extip:%v",
+		httpExposedApisString,
+		ipPlaceholder,
+		ipPlaceholder)
 	entrypointArgs = []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("cp -r %v %v && geth --keystore %v --datadir %v --networkid %v --http --http.api admin,eth --http.corsdomain '*' --nat extip:%v",
-			gethDataMountedDirpath,
-			gethDataRuntimeDirpath,
-			fmt.Sprintf("%v%v%v", gethDataRuntimeDirpath, os.PathSeparator, keystoreFilename),
-			gethDataRuntimeDirpath,
-			privateNetworkId,
-			ipPlaceholder),
+		entrypointCommand,
 	}
 	return entrypointArgs, nil, nil
 }
