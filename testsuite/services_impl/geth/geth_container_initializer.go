@@ -12,6 +12,7 @@ const (
 	rpcPort       = 8545
 	discoveryPort = 30303
 
+	keystoreFilename = "keystore"
 	privateNetworkId = 9
 	testVolumeMountpoint = "/test-volume"
 	genesisJsonFilename = "genesis.json"
@@ -83,9 +84,10 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 	entrypointArgs = []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("cp -r %v %v && geth --datadir %v --networkid %v --nat extip:%v",
+		fmt.Sprintf("cp -r %v %v && geth --keystore %v --datadir %v --networkid %v --nat extip:%v",
 				gethDataMountedDirpath,
 				gethDataRuntimeDirpath,
+				fmt.Sprintf("%v%v%v", gethDataRuntimeDirpath, os.PathSeparator, keystoreFilename),
 				gethDataRuntimeDirpath,
 				privateNetworkId,
 				ipPlaceholder),
