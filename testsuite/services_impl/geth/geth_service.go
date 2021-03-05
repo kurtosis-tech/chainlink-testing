@@ -19,6 +19,7 @@ func (service GethService) GetIPAddress() string {
 }
 
 func (service GethService) GetEnodeAddress() string {
+	// TODO TODO TODO Implement RPC call to service to get enode
 	return ""
 }
 
