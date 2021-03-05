@@ -27,12 +27,14 @@ const (
 type GethContainerInitializer struct {
 	dockerImage string
 	dataDirArtifactId services.FilesArtifactID
+	gethBootstrapperService *GethService
 }
 
-func NewGethContainerInitializer(dockerImage string, dataDirArtifactId services.FilesArtifactID) *GethContainerInitializer {
+func NewGethContainerInitializer(dockerImage string, dataDirArtifactId services.FilesArtifactID, gethBootstrapperService *GethService) *GethContainerInitializer {
 	return &GethContainerInitializer{
 		dockerImage: dockerImage,
 		dataDirArtifactId: dataDirArtifactId,
+		gethBootstrapperService: gethBootstrapperService,
 	}
 }
 
@@ -81,6 +83,20 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 }
 
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+	if initializer.gethBootstrapperService == nil {
+		// This is a bootstrapper
+		entrypointArgs = []string{
+			"/bin/sh",
+			"-c",
+			fmt.Sprintf("cp -r %v %v && geth --keystore %v --datadir %v --networkid %v --http --http.api admin,eth --http.corsdomain '*' --nat extip:%v",
+				gethDataMountedDirpath,
+				gethDataRuntimeDirpath,
+				fmt.Sprintf("%v%v%v", gethDataRuntimeDirpath, os.PathSeparator, keystoreFilename),
+				gethDataRuntimeDirpath,
+				privateNetworkId,
+				ipPlaceholder),
+		}
+	}
 	entrypointArgs = []string{
 		"/bin/sh",
 		"-c",

@@ -13,6 +13,15 @@ func NewGethService(serviceCtx *services.ServiceContext, port int) *GethService 
 	return &GethService{serviceCtx: serviceCtx, rpcPort: port}
 }
 
+func (service GethService) GetIPAddress() string {
+	ipAddress := service.serviceCtx.GetIPAddress()
+	return ipAddress
+}
+
+func (service GethService) GetEnodeAddress() string {
+	return ""
+}
+
 // ===========================================================================================
 //                              Service interface methods
 // ===========================================================================================
