@@ -75,9 +75,27 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 		}
 		logrus.Infof("Validator enode record: %v", enodeRecord)
 	}
-	time.Sleep(60 * time.Second)
+	time.Sleep(10 * time.Second)
 	err = chainlinkNetwork.ManuallyConnectPeers()
-	time.Sleep(60 * time.Second)
+	time.Sleep(5 * time.Second)
+
+	bootstrapPeers, err := chainlinkNetwork.GetBootstrapper().GetPeers()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "Failed to get peers of the bootstrapper."))
+	}
+	logrus.Infof("Bootstrap node peers: %+v", bootstrapPeers)
+
+	for i := 0; i < numberOfExtraNodes; i++ {
+		gethService, err := chainlinkNetwork.GetGethService(test.validatorIds[i])
+		if err != nil {
+			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get validator %v", test.validatorIds[i]))
+		}
+		getPeers, err := gethService.GetPeers()
+		if err != nil {
+			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get peers of validator %v", test.validatorIds[i]))
+		}
+		logrus.Infof("Peers of validator %v: %+v", test.validatorIds[i], getPeers)
+	}
 
 
 	if err != nil {

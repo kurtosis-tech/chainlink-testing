@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"strings"
 )
@@ -22,7 +23,7 @@ type GethService struct {
 }
 
 type NodeInfoResponse struct {
-	Result NodeInfo `json:"result""`
+	Result NodeInfo `json:"result"`
 }
 
 type NodeInfo struct {
@@ -30,7 +31,21 @@ type NodeInfo struct {
 }
 
 type AddPeerResponse struct {
-	Result bool `json:"result""`
+	Result bool `json:"result"`
+}
+
+type GetPeersResponse struct {
+	Result []Peer `json:"result"`
+}
+
+type Peer struct {
+	id string `json:"id"`
+	network NetworkRecord `json:"network"`
+}
+
+type NetworkRecord struct {
+	localAddress string `json:"localAddress"`
+	remoteAddress string `json:"remoteAddress"`
 }
 
 func NewGethService(serviceCtx *services.ServiceContext, port int) *GethService {
@@ -43,13 +58,24 @@ func (service GethService) GetIPAddress() string {
 }
 
 func (service GethService) AddPeer(peerEnode string) (bool, error) {
-	adminAddPeerRpcCall := fmt.Sprintf(`{"jsonrpc":"2.0", "method": "admin_addPeer", "params": %v, "id":67}`, peerEnode)
+	adminAddPeerRpcCall := fmt.Sprintf(`{"jsonrpc":"2.0", "method": "admin_addPeer", "params": ["%v"], "id":70}`, peerEnode)
+	logrus.Infof("Admin add peer rpc call: %v", adminAddPeerRpcCall)
 	addPeerResponse := new(AddPeerResponse)
 	err := service.sendRpcCall(adminAddPeerRpcCall, addPeerResponse)
+	logrus.Infof("AddPeer response: %+v", addPeerResponse)
 	if err != nil {
 		return false, stacktrace.Propagate(err, "Failed to send addPeer RPC call for enode %v", peerEnode)
 	}
 	return addPeerResponse.Result, nil
+}
+
+func (service GethService) GetPeers() ([]Peer, error) {
+	getPeersResponse := new(GetPeersResponse)
+	err := service.sendRpcCall(adminPeerRpcCall, getPeersResponse)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Failed to send getPeers RPC call for service %v", service.serviceCtx.GetServiceID())
+	}
+	return getPeersResponse.Result, nil
 }
 
 func (service GethService) GetEnodeAddress() (string, error) {
