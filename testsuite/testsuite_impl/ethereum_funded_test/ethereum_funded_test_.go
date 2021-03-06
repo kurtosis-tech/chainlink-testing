@@ -34,7 +34,7 @@ func (test EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (netwo
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
 	}
-	return networkCtx, nil
+	return chainlinkNetwork, nil
 }
 
 func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.TestContext) {
