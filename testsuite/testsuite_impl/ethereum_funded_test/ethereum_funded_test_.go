@@ -23,12 +23,13 @@ const (
 
 type EthereumFundedTest struct {
 	gethServiceImage string
-	firstValidatorId services.ServiceID
+	validatorIds []services.ServiceID
 }
 
 func NewEthereumFundedTest(gethServiceImage string) *EthereumFundedTest {
 	return &EthereumFundedTest{
 		gethServiceImage: gethServiceImage,
+		validatorIds: []services.ServiceID{},
 	}
 }
 
@@ -44,7 +45,7 @@ func (test *EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (netw
 			return nil, stacktrace.Propagate(err, "Failed to add an ethereum node.")
 		}
 		logrus.Infof("Added a geth service with id: %v", serviceId)
-		test.firstValidatorId = serviceId
+		test.validatorIds = append(test.validatorIds, serviceId)
 	}
 	return chainlinkNetwork, nil
 }
@@ -63,7 +64,7 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 	}
 	logrus.Infof("Bootnode enode record: %v", enodeRecord)
 
-	validatorService, err := chainlinkNetwork.GetGethService(test.firstValidatorId)
+	validatorService, err := chainlinkNetwork.GetGethService(test.validatorIds[0])
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, ""))
 	}
