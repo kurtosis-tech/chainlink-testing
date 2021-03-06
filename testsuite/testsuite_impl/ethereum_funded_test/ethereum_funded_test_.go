@@ -4,6 +4,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/testsuite"
+	"github.com/kurtosistech/chainlink-testing/testsuite/networks_impl"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
@@ -29,13 +30,10 @@ func NewEthereumFundedTest(gethServiceImage string) *EthereumFundedTest {
 }
 
 func (test EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
-	bootnodeContainerInitializer := geth.NewGethContainerInitializer(test.gethServiceImage, gethDataDirArtifactId, nil)
-	_, availabilityChecker, err := networkCtx.AddService(gethBootnodeServiceId, bootnodeContainerInitializer)
+	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx, gethDataDirArtifactId, test.gethServiceImage)
+	err := chainlinkNetwork.AddBootstrapper()
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred adding the bootnode")
-	}
-	if err := availabilityChecker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxPolls); err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred waiting for the datastore service to become available")
+		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
 	}
 	return networkCtx, nil
 }

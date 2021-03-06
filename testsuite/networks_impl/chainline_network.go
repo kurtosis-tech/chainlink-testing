@@ -26,7 +26,7 @@ type ChainlinkNetwork struct {
 	nextGethServiceId     int
 }
 
-func NewTestNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string) *ChainlinkNetwork {
+func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
 		networkCtx:            networkCtx,
 		gethDataDirArtifactId:	gethDataDirArtifactId,
@@ -38,19 +38,19 @@ func NewTestNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId s
 }
 
 func (network *ChainlinkNetwork) AddBootstrapper() error {
-	if (network.gethBootsrapperService != nil) {
+	if network.gethBootsrapperService != nil {
 		return stacktrace.NewError("Cannot add bootstrapper service to network; bootstrapper already exists!")
 	}
 
 	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, nil)
-	uncastedDatastore, checker, err := network.networkCtx.AddService(ethereumBootstrapperId, initializer)
+	uncastedBootstrapper, checker, err := network.networkCtx.AddService(ethereumBootstrapperId, initializer)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred adding the bootstrapper service")
 	}
 	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
 		return stacktrace.Propagate(err, "An error occurred waiting for the bootstrapper service to start")
 	}
-	castedGethBootstrapperService := uncastedDatastore.(*geth.GethService)
+	castedGethBootstrapperService := uncastedBootstrapper.(*geth.GethService)
 	network.gethBootsrapperService = castedGethBootstrapperService
 	return nil
 }
