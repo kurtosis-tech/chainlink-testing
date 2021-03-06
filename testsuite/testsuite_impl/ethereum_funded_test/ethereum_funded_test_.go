@@ -75,7 +75,7 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 		}
 		logrus.Infof("Validator enode record: %v", enodeRecord)
 	}
-
+	time.Sleep(90 * time.Second)
 	err = chainlinkNetwork.ManuallyConnectPeers()
 
 	if err != nil {
