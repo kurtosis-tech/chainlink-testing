@@ -5,7 +5,6 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/testsuite"
 	"github.com/kurtosistech/chainlink-testing/testsuite/networks_impl"
-	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -40,19 +39,13 @@ func (test EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (netwo
 
 func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.TestContext) {
 	// Necessary because Go doesn't have generics
-	castedNetwork := network.(*networks.NetworkContext)
+	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
 
-	uncastedService, err := castedNetwork.GetService(gethBootnodeServiceId)
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the datastore service"))
-	}
+	bootstrapperService := chainlinkNetwork.GetBootstrapper()
 
-	// Necessary again due to no Go generics
-	castedService := uncastedService.(*geth.GethService)
+	isAvailable := bootstrapperService.IsAvailable()
 
-	isAvailable := castedService.IsAvailable()
-
-	enodeAddress, err := castedService.GetEnodeAddress()
+	enodeAddress, err := bootstrapperService.GetEnodeAddress()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the enodeAddress."))
 	}
