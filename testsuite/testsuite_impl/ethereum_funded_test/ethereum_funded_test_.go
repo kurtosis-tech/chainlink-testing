@@ -6,6 +6,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/testsuite"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"time"
 )
 
@@ -53,7 +54,13 @@ func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.T
 
 	isAvailable := castedService.IsAvailable()
 
-	time.Sleep(time.Second * 720)
+	time.Sleep(time.Second * 10)
+
+	enodeAddress, err := castedService.GetEnodeAddress()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the enodeAddress."))
+	}
+	logrus.Infof("Enode address response: %v", enodeAddress)
 
 	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Bootnode did not become available."))
 }
