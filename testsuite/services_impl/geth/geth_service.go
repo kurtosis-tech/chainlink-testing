@@ -2,16 +2,28 @@ package geth
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/palantir/stacktrace"
-	"io/ioutil"
 	"net/http"
+)
+
+const (
+	adminInfoRpcCall = `{"jsonrpc":"2.0","method": "admin_nodeInfo","params":[],"id":67}`
 )
 
 type GethService struct {
 	serviceCtx *services.ServiceContext
 	rpcPort   int
+}
+
+type NodeInfoResponse struct {
+	Result NodeInfo `json:"result""`
+}
+
+type NodeInfo struct {
+	Enode string `json: "enode"`
 }
 
 func NewGethService(serviceCtx *services.ServiceContext, port int) *GethService {
@@ -26,7 +38,7 @@ func (service GethService) GetIPAddress() string {
 func (service GethService) GetEnodeAddress() (string, error) {
 	// TODO TODO TODO Implement RPC call to service to get enode
 	url := fmt.Sprintf("http://%v:%v", service.serviceCtx.GetIPAddress(), rpcPort)
-	var jsonStr = []byte(`{"jsonrpc":"2.0","method": "admin_nodeInfo","params":[],"id":67}`)
+	var jsonStr = []byte(adminInfoRpcCall)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonStr))
 	if err != nil {
@@ -35,12 +47,18 @@ func (service GethService) GetEnodeAddress() (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		/*bodyBytes, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return "", stacktrace.Propagate(err, "Errored in reading admin RPC api response.")
 		}
-		bodyString := string(bodyBytes)
-		return fmt.Sprintf("Response: %v", bodyString), nil
+		bodyString := string(bodyBytes)*/
+
+		nodeInfoResponse := new(NodeInfoResponse)
+		err = json.NewDecoder(resp.Body).Decode(nodeInfoResponse)
+		if err != nil {
+			return "", stacktrace.Propagate(err, "Error parsing node info response.")
+		}
+		return nodeInfoResponse.Result.Enode, nil
 	} else {
 		return "", stacktrace.NewError("Received non-200 status code rom admin RPC api: %v", resp.StatusCode)
 	}
