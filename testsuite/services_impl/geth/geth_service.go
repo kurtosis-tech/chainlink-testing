@@ -7,10 +7,12 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/palantir/stacktrace"
 	"net/http"
+	"strings"
 )
 
 const (
 	adminInfoRpcCall = `{"jsonrpc":"2.0","method": "admin_nodeInfo","params":[],"id":67}`
+	enodePrefix = "enode://"
 )
 
 type GethService struct {
@@ -69,27 +71,10 @@ func (service GethService) GetEnodeAddress() (string, error) {
 // ===========================================================================================
 
 func (service GethService) IsAvailable() bool {
-	/*url := fmt.Sprintf("http://%v:%v/%v", service.GetIPAddress(), service.rpcPort)
-	resp, err := http.Get(url)
+	enodeAddress, err := service.GetEnodeAddress()
 	if err != nil {
-		logrus.Debugf("An HTTP error occurred when polliong the health endpoint: %v", err)
 		return false
+	} else {
+		return strings.HasPrefix(enodeAddress, enodePrefix)
 	}
-	if resp.StatusCode != http.StatusOK {
-		logrus.Debugf("Received non-OK status code: %v", resp.StatusCode)
-		return false
-	}
-
-	body := resp.Body
-	defer body.Close()
-
-	bodyBytes, err := ioutil.ReadAll(body)
-	if err != nil {
-		logrus.Debugf("An error occurred reading the response body: %v", err)
-		return false
-	}
-	bodyStr := string(bodyBytes)
-
-	return bodyStr == healthyValue*/
-	return true
 }

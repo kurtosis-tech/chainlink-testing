@@ -54,8 +54,6 @@ func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.T
 
 	isAvailable := castedService.IsAvailable()
 
-	time.Sleep(time.Second * 10)
-
 	enodeAddress, err := castedService.GetEnodeAddress()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the enodeAddress."))
