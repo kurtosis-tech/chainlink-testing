@@ -12,6 +12,7 @@ import (
 
 const (
 	adminInfoRpcCall = `{"jsonrpc":"2.0","method": "admin_nodeInfo","params":[],"id":67}`
+	adminPeerRpcCall = `{"jsonrpc":"2.0", "method": "admin_peers","params":[],"id":67}`
 	enodePrefix = "enode://"
 )
 
@@ -38,7 +39,6 @@ func (service GethService) GetIPAddress() string {
 }
 
 func (service GethService) GetEnodeAddress() (string, error) {
-	// TODO TODO TODO Implement RPC call to service to get enode
 	url := fmt.Sprintf("http://%v:%v", service.serviceCtx.GetIPAddress(), rpcPort)
 	var jsonStr = []byte(adminInfoRpcCall)
 

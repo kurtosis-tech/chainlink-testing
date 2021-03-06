@@ -86,7 +86,8 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	// This is a bootstrapper
 	entrypointCommand := fmt.Sprintf("cp -r %v %v && ", gethDataMountedDirpath, gethDataRuntimeDirpath)
-	entrypointCommand += fmt.Sprintf("geth --keystore %v --datadir %v --networkid %v ",
+	entrypointCommand += fmt.Sprintf("geth init --datadir %v %v && ", gethDataRuntimeDirpath, mountedFileFilepaths[genesisJsonFilename])
+	entrypointCommand += fmt.Sprintf("geth --keystore %v --datadir %v --networkid %v --syncmode=fast",
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
 		gethDataRuntimeDirpath,
 		privateNetworkId)
