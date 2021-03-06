@@ -29,13 +29,15 @@ type GethContainerInitializer struct {
 	dockerImage string
 	dataDirArtifactId services.FilesArtifactID
 	gethBootstrapperService *GethService
+	isMiner bool
 }
 
-func NewGethContainerInitializer(dockerImage string, dataDirArtifactId services.FilesArtifactID, gethBootstrapperService *GethService) *GethContainerInitializer {
+func NewGethContainerInitializer(dockerImage string, dataDirArtifactId services.FilesArtifactID, gethBootstrapperService *GethService, isMiner bool) *GethContainerInitializer {
 	return &GethContainerInitializer{
 		dockerImage: dockerImage,
 		dataDirArtifactId: dataDirArtifactId,
 		gethBootstrapperService: gethBootstrapperService,
+		isMiner: isMiner,
 	}
 }
 
@@ -95,6 +97,9 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		httpExposedApisString,
 		ipPlaceholder,
 		ipPlaceholder)
+	if initializer.isMiner {
+		entrypointCommand += "--mine --miner.threads=1 --etherbase=0x0000000000000000000000000000000000000000 "
+	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
 		if err != nil {
