@@ -98,7 +98,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		ipPlaceholder,
 		ipPlaceholder)
 	if initializer.isMiner {
-		entrypointCommand += "--mine --miner.threads=1 --etherbase=0x0000000000000000000000000000000000000000 "
+		entrypointCommand += "--mine --miner.threads=1 --miner.etherbase=0x0000000000000000000000000000000000000000 "
 	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
