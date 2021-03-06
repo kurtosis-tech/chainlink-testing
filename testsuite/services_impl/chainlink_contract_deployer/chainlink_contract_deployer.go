@@ -3,6 +3,7 @@ package chainlink_contract_deployer
 import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
 	"os"
 )
@@ -44,7 +45,9 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port str
 	overwriteMigrationPortCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("sed -ie \"s/port:\\ 8545/port:\\ %v/g\" %v >> %v", port,
+		fmt.Sprintf("sed -ie \"s/port:\\ 8545/port:\\ %v,\\n\\tfrom: '%v',/g\" %v >> %v",
+			port,
+			geth.FirstAccountPublicKey,
 			migrationConfigurationFileName,
 			testVolumeMountpoint + "/" + execLogFilename),
 	}
