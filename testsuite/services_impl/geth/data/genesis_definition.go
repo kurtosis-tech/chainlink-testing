@@ -3,7 +3,7 @@ package data
 const GenesisJson =
 	`{
   "config": {
-    "chainId": 15,
+    "chainId": 9,
     "homesteadBlock": 0,
     "eip150Block": 0,
     "eip155Block": 0,

@@ -76,7 +76,7 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 		logrus.Infof("Validator enode record: %v", enodeRecord)
 	}
 
-	time.Sleep(time.Second * 360)
+	time.Sleep(time.Second * 720)
 	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Network did not become available."))
 }
 
@@ -90,10 +90,10 @@ func (test *EthereumFundedTest) GetTestConfiguration() testsuite.TestConfigurati
 }
 
 func (test *EthereumFundedTest) GetExecutionTimeout() time.Duration {
-	return 720 * time.Second
+	return 960 * time.Second
 }
 
 func (test *EthereumFundedTest) GetSetupTimeout() time.Duration {
-	return 720 * time.Second
+	return 960 * time.Second
 }
 
