@@ -77,6 +77,19 @@ func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {
 		return "", stacktrace.Propagate(err, "An error occurred waiting for the ethereum node to start")
 	}
 	castedGethService := uncastedGethService.(*geth.GethService)
+	for peerId, peerGethService := range network.gethServices {
+		peerGethServiceEnode, err := peerGethService.GetEnodeAddress()
+		if err != nil {
+			return "", stacktrace.Propagate(err, "Failed to get enode from peer %v", peerId)
+		}
+		ok, err := castedGethService.AddPeer(peerGethServiceEnode)
+		if err != nil {
+			return "", stacktrace.Propagate(err, "Failed to call addPeer endpoint to add peer with enode %v", peerGethServiceEnode)
+		}
+		if !ok {
+			return "", stacktrace.NewError("addPeer endpoint returned false on service %v", serviceId)
+		}
+	}
 	network.gethServices[serviceId] = castedGethService
 	return serviceId, nil
 }

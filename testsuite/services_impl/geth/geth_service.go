@@ -13,7 +13,6 @@ import (
 const (
 	adminInfoRpcCall = `{"jsonrpc":"2.0","method": "admin_nodeInfo","params":[],"id":67}`
 	adminPeerRpcCall = `{"jsonrpc":"2.0", "method": "admin_peers","params":[],"id":67}`
-	adminAddPeerRpcCall = `{"jsonrpc":"2.0", "method": "admin_addPeer", "params": [url], "id":67}`
 	enodePrefix = "enode://"
 )
 
@@ -30,6 +29,10 @@ type NodeInfo struct {
 	Enode string `json: "enode"`
 }
 
+type AddPeerResponse struct {
+	Result bool `json:"result""`
+}
+
 func NewGethService(serviceCtx *services.ServiceContext, port int) *GethService {
 	return &GethService{serviceCtx: serviceCtx, rpcPort: port}
 }
@@ -37,6 +40,16 @@ func NewGethService(serviceCtx *services.ServiceContext, port int) *GethService 
 func (service GethService) GetIPAddress() string {
 	ipAddress := service.serviceCtx.GetIPAddress()
 	return ipAddress
+}
+
+func (service GethService) AddPeer(peerEnode string) (bool, error) {
+	adminAddPeerRpcCall := fmt.Sprintf(`{"jsonrpc":"2.0", "method": "admin_addPeer", "params": %v, "id":67}`, peerEnode)
+	addPeerResponse := new(AddPeerResponse)
+	err := service.sendRpcCall(adminAddPeerRpcCall, addPeerResponse)
+	if err != nil {
+		return false, stacktrace.Propagate(err, "Failed to send addPeer RPC call for enode %v", peerEnode)
+	}
+	return addPeerResponse.Result, nil
 }
 
 func (service GethService) GetEnodeAddress() (string, error) {
