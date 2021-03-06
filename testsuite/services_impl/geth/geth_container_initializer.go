@@ -87,7 +87,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 	// This is a bootstrapper
 	entrypointCommand := fmt.Sprintf("cp -r %v %v && ", gethDataMountedDirpath, gethDataRuntimeDirpath)
 	entrypointCommand += fmt.Sprintf("geth init --datadir %v %v && ", gethDataRuntimeDirpath, mountedFileFilepaths[genesisJsonFilename])
-	entrypointCommand += fmt.Sprintf("geth --keystore %v --datadir %v --networkid %v ",
+	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
 		gethDataRuntimeDirpath,
 		privateNetworkId)
