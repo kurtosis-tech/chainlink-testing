@@ -80,6 +80,7 @@ func (service GethService) sendRpcCall(rpcJsonString string, targetStruct interf
 		if err != nil {
 			return stacktrace.Propagate(err, "Error parsing geth node response into target struct.")
 		}
+		return nil
 	} else {
 		return stacktrace.NewError("Received non-200 status code rom admin RPC api: %v", resp.StatusCode)
 	}
