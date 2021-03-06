@@ -76,7 +76,7 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 		logrus.Infof("Validator enode record: %v", enodeRecord)
 	}
 
-	time.Sleep(time.Second * 90)
+	time.Sleep(time.Second * 360)
 	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Network did not become available."))
 }
 
