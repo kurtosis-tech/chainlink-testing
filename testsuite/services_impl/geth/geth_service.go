@@ -7,6 +7,8 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
+	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 )
@@ -39,13 +41,14 @@ type GetPeersResponse struct {
 }
 
 type Peer struct {
-	id string `json:"id"`
-	network NetworkRecord `json:"network"`
+	Enode string `json:"enode"`
+	Id string `json:"id"`
+	Network NetworkRecord `json:"network"`
 }
 
 type NetworkRecord struct {
-	localAddress string `json:"localAddress"`
-	remoteAddress string `json:"remoteAddress"`
+	LocalAddress string `json:"localAddress"`
+	RemoteAddress string `json:"remoteAddress"`
 }
 
 func NewGethService(serviceCtx *services.ServiceContext, port int) *GethService {
@@ -59,10 +62,10 @@ func (service GethService) GetIPAddress() string {
 
 func (service GethService) AddPeer(peerEnode string) (bool, error) {
 	adminAddPeerRpcCall := fmt.Sprintf(`{"jsonrpc":"2.0", "method": "admin_addPeer", "params": ["%v"], "id":70}`, peerEnode)
-	logrus.Infof("Admin add peer rpc call: %v", adminAddPeerRpcCall)
+	logrus.Tracef("Admin add peer rpc call: %v", adminAddPeerRpcCall)
 	addPeerResponse := new(AddPeerResponse)
 	err := service.sendRpcCall(adminAddPeerRpcCall, addPeerResponse)
-	logrus.Infof("AddPeer response: %+v", addPeerResponse)
+	logrus.Tracef("AddPeer response: %+v", addPeerResponse)
 	if err != nil {
 		return false, stacktrace.Propagate(err, "Failed to send addPeer RPC call for enode %v", peerEnode)
 	}
@@ -115,7 +118,17 @@ func (service GethService) sendRpcCall(rpcJsonString string, targetStruct interf
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		err = json.NewDecoder(resp.Body).Decode(targetStruct)
+		// For debugging
+		var teeBuf bytes.Buffer
+		tee := io.TeeReader(resp.Body, &teeBuf)
+		bodyBytes, err := ioutil.ReadAll(tee)
+		if err != nil {
+			return stacktrace.Propagate(err, "Error parsing geth node response into bytes.")
+		}
+		bodyString := string(bodyBytes)
+		logrus.Tracef("Response for RPC call %v: %v", rpcJsonString, bodyString)
+
+		err = json.NewDecoder(&teeBuf).Decode(targetStruct)
 		if err != nil {
 			return stacktrace.Propagate(err, "Error parsing geth node response into target struct.")
 		}

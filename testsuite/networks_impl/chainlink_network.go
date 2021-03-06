@@ -84,8 +84,14 @@ func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {
 }
 
 func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
-	for nodeId, nodeGethService := range network.gethServices {
-		for peerId, peerGethService := range network.gethServices {
+	allServices := map[services.ServiceID]*geth.GethService{
+		ethereumBootstrapperId: network.gethBootsrapperService,
+	}
+	for id, service := range network.gethServices {
+		allServices[id] = service
+	}
+	for nodeId, nodeGethService := range allServices {
+		for peerId, peerGethService := range allServices {
 			if nodeId == peerId {
 				continue
 			}
