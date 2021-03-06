@@ -23,18 +23,20 @@ const (
 
 type EthereumFundedTest struct {
 	gethServiceImage string
+	chainlinkContractDeployerImage string
 	validatorIds []services.ServiceID
 }
 
-func NewEthereumFundedTest(gethServiceImage string) *EthereumFundedTest {
+func NewEthereumFundedTest(gethServiceImage string, chainlinkContractDeployerImage string) *EthereumFundedTest {
 	return &EthereumFundedTest{
 		gethServiceImage: gethServiceImage,
+		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
 		validatorIds: []services.ServiceID{},
 	}
 }
 
 func (test *EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
-	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx, gethDataDirArtifactId, test.gethServiceImage)
+	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx, gethDataDirArtifactId, test.gethServiceImage, test.chainlinkContractDeployerImage)
 	err := chainlinkNetwork.AddBootstrapper()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")

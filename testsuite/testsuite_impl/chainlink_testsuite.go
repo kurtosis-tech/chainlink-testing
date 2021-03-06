@@ -7,15 +7,19 @@ import (
 
 type ChainlinkTestsuite struct {
 	gethServiceImage string
+	chainlinkContractDeployerImage string
 }
 
-func NewChainlinkTestsuite(gethServiceImage string) *ChainlinkTestsuite {
-	return &ChainlinkTestsuite{gethServiceImage: gethServiceImage}
+func NewChainlinkTestsuite(gethServiceImage string, chainlinkContractDeployerImage string) *ChainlinkTestsuite {
+	return &ChainlinkTestsuite{
+		gethServiceImage: gethServiceImage,
+		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
+	}
 }
 
 func (suite ChainlinkTestsuite) GetTests() map[string]testsuite.Test {
 	tests := map[string]testsuite.Test{
-		"ethereumFundedTest": ethereum_funded_test.NewEthereumFundedTest(suite.gethServiceImage),
+		"ethereumFundedTest": ethereum_funded_test.NewEthereumFundedTest(suite.gethServiceImage, suite.chainlinkContractDeployerImage),
 	}
 	return tests
 }

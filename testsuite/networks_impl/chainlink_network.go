@@ -25,9 +25,10 @@ type ChainlinkNetwork struct {
 	gethBootsrapperService           *geth.GethService
 	gethServices          map[services.ServiceID]*geth.GethService
 	nextGethServiceId     int
+	chainlinkContractDeployerImage string
 }
 
-func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string) *ChainlinkNetwork {
+func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string, chainlinkContractDeployerImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
 		networkCtx:            networkCtx,
 		gethDataDirArtifactId:	gethDataDirArtifactId,
@@ -35,6 +36,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		gethBootsrapperService:      	   nil,
 		gethServices:           map[services.ServiceID]*geth.GethService{},
 		nextGethServiceId:     0,
+		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
 	}
 }
 
