@@ -7,8 +7,7 @@ import (
 )
 
 const (
-	migrationConfigurationFileName = "LinkToken/truffle-config.js"
-	findAndReplaceHostTemplate = `sed -ie "s/host:\ 'localhost'/host:\ '%v'/g" %v`
+	migrationConfigurationFileName = "truffle-config.js"
 
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
 	testVolumeMountpoint = "/test-volume"
@@ -26,7 +25,7 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationIPAddress(nod
 	overwriteMigrationIPAddressCommand := []string{
 		"sed",
 		"-ie",
-		fmt.Sprintf("s/host:\\ 'localhost'/host:\\ '%v'/g", nodeIpAddress),
+		fmt.Sprintf("s/host:\\ 'localhost'/host:\\ '%v'/g %v", nodeIpAddress, migrationConfigurationFileName),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
 	if err != nil {
@@ -41,7 +40,7 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port str
 	overwriteMigrationPortCommand := []string{
 		"sed",
 		"-ie",
-		fmt.Sprintf("s/port:\\ 8545/port:\\ %v/g", port),
+		fmt.Sprintf("s/port:\\ 8545/port:\\ %v/g %v", port, migrationConfigurationFileName),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
 	if err != nil {
