@@ -13,6 +13,7 @@ import (
 const (
 	adminInfoRpcCall = `{"jsonrpc":"2.0","method": "admin_nodeInfo","params":[],"id":67}`
 	adminPeerRpcCall = `{"jsonrpc":"2.0", "method": "admin_peers","params":[],"id":67}`
+	adminAddPeerRpcCall = `{"jsonrpc":"2.0", "method": "admin_addPeer", "params": [url], "id":67}`
 	enodePrefix = "enode://"
 )
 
@@ -39,25 +40,12 @@ func (service GethService) GetIPAddress() string {
 }
 
 func (service GethService) GetEnodeAddress() (string, error) {
-	url := fmt.Sprintf("http://%v:%v", service.serviceCtx.GetIPAddress(), rpcPort)
-	var jsonStr = []byte(adminInfoRpcCall)
-
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonStr))
+	nodeInfoResponse := new(NodeInfoResponse)
+	err := service.sendRpcCall(adminInfoRpcCall, nodeInfoResponse)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to ping the admin RPC of the bootnode.")
+		return "", stacktrace.Propagate(err, "Failed to send admin node info RPC request to geth node %v", service.serviceCtx.GetServiceID())
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
-		nodeInfoResponse := new(NodeInfoResponse)
-		err = json.NewDecoder(resp.Body).Decode(nodeInfoResponse)
-		if err != nil {
-			return "", stacktrace.Propagate(err, "Error parsing node info response.")
-		}
-		return nodeInfoResponse.Result.Enode, nil
-	} else {
-		return "", stacktrace.NewError("Received non-200 status code rom admin RPC api: %v", resp.StatusCode)
-	}
+	return nodeInfoResponse.Result.Enode, nil
 }
 
 // ===========================================================================================
@@ -70,5 +58,29 @@ func (service GethService) IsAvailable() bool {
 		return false
 	} else {
 		return strings.HasPrefix(enodeAddress, enodePrefix)
+	}
+}
+
+// ==========================================================================================
+//								RPC utility methods
+// ==========================================================================================
+
+func (service GethService) sendRpcCall(rpcJsonString string, targetStruct interface{}) error {
+	url := fmt.Sprintf("http://%v:%v", service.serviceCtx.GetIPAddress(), rpcPort)
+	var jsonByteArray = []byte(rpcJsonString)
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonByteArray))
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to send RPC request to geth node %v", service.serviceCtx.GetServiceID())
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		err = json.NewDecoder(resp.Body).Decode(targetStruct)
+		if err != nil {
+			return stacktrace.Propagate(err, "Error parsing geth node response into target struct.")
+		}
+	} else {
+		return stacktrace.NewError("Received non-200 status code rom admin RPC api: %v", resp.StatusCode)
 	}
 }
