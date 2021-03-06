@@ -45,7 +45,9 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port str
 	overwriteMigrationPortCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("sed -ie \"s/port:\\ 8545/port:\\ %v,\\n\\tfrom: '%v',/g\" %v >> %v",
+		fmt.Sprintf("cat %v >> %v && sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v >> %v",
+			migrationConfigurationFileName,
+			testVolumeMountpoint + "/" + execLogFilename,
 			port,
 			geth.FirstAccountPublicKey,
 			migrationConfigurationFileName,
