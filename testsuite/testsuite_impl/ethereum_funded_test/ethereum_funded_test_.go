@@ -97,6 +97,10 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 		logrus.Infof("Peers of validator %v: %+v", test.validatorIds[i], getPeers)
 	}
 
+	err = chainlinkNetwork.DeployChainlinkContract()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "Failed to deploy the $LINK contract on the network."))
+	}
 
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to manually connect peers in the network."))
