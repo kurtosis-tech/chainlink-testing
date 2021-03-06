@@ -60,6 +60,10 @@ func (service GethService) GetIPAddress() string {
 	return ipAddress
 }
 
+func (service GethService) GetRpcPort() int {
+	return rpcPort
+}
+
 func (service GethService) AddPeer(peerEnode string) (bool, error) {
 	adminAddPeerRpcCall := fmt.Sprintf(`{"jsonrpc":"2.0", "method": "admin_addPeer", "params": ["%v"], "id":70}`, peerEnode)
 	logrus.Tracef("Admin add peer rpc call: %v", adminAddPeerRpcCall)

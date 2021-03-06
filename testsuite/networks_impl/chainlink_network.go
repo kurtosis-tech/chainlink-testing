@@ -3,6 +3,7 @@ package networks_impl
 import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
@@ -13,31 +14,56 @@ import (
 const (
 	ethereumBootstrapperId services.ServiceID = "ethereum-bootstrapper"
 	gethServiceIdPrefix                       = "ethereum-node-"
+	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 15
 )
 
 type ChainlinkNetwork struct {
-	networkCtx            *networks.NetworkContext
-	gethDataDirArtifactId  services.FilesArtifactID
-	gethServiceImage      string
-	gethBootsrapperService           *geth.GethService
-	gethServices          map[services.ServiceID]*geth.GethService
-	nextGethServiceId     int
-	chainlinkContractDeployerImage string
+	networkCtx                *networks.NetworkContext
+	gethDataDirArtifactId     services.FilesArtifactID
+	gethServiceImage          string
+	gethBootsrapperService    *geth.GethService
+	gethServices              map[services.ServiceID]*geth.GethService
+	nextGethServiceId         int
+	linkContractDeployerImage string
 }
 
-func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string, chainlinkContractDeployerImage string) *ChainlinkNetwork {
+func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string, linkContractDeployerImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
-		networkCtx:            networkCtx,
-		gethDataDirArtifactId:	gethDataDirArtifactId,
-		gethServiceImage:	   gethServiceImage,
-		gethBootsrapperService:      	   nil,
-		gethServices:           map[services.ServiceID]*geth.GethService{},
-		nextGethServiceId:     0,
-		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
+		networkCtx:                networkCtx,
+		gethDataDirArtifactId:     gethDataDirArtifactId,
+		gethServiceImage:          gethServiceImage,
+		gethBootsrapperService:    nil,
+		gethServices:              map[services.ServiceID]*geth.GethService{},
+		nextGethServiceId:         0,
+		linkContractDeployerImage: linkContractDeployerImage,
 	}
+}
+
+func (network *ChainlinkNetwork) DeployChainlinkContract() error {
+	if len(network.gethServices) == 0 {
+		return stacktrace.NewError("Can not deploy contract because the network does not have non-bootstrapper nodes yet.")
+	}
+	// TODO TODO TODO Be more principled about which service to deploy on
+	deployService := network.gethBootsrapperService
+	initializer := chainlink_contract_deployer.NewChainlinkContractDeployerInitializer(network.linkContractDeployerImage)
+	uncastedContractDeployer, checker, err := network.networkCtx.AddService(linkContractDeployerId, initializer)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the $LINK contract deployer to the network.")
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for the $LINK contract deployer service to start")
+	}
+	castedContractDeployer := uncastedContractDeployer.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
+	linkContractDeployerService := castedContractDeployer
+
+	err = linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")
+	}
+	return nil
 }
 
 func (network *ChainlinkNetwork) AddBootstrapper() error {
