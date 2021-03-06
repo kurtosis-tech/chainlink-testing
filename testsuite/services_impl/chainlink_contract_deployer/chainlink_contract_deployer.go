@@ -25,11 +25,11 @@ func NewChainlinkContractDeployerService(serviceCtx *services.ServiceContext) *C
 
 func (deployer ChainlinkContractDeployerService) overwriteMigrationIPAddress(nodeIpAddress string) error {
 	overwriteMigrationIPAddressCommand := []string{
-		"sed",
-		"-ie",
-		fmt.Sprintf("s/host:\\ 'localhost'/host:\\ '%v'/g %v >> %v", nodeIpAddress,
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("sed -ie \"s/host:\\ 'localhost'/host:\\ '%v'/g\" %v >> %v", nodeIpAddress,
 			migrationConfigurationFileName,
-			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
+			testVolumeMountpoint + "/" + execLogFilename),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
 	if err != nil {
@@ -42,10 +42,11 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationIPAddress(nod
 
 func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port string) error {
 	overwriteMigrationPortCommand := []string{
-		"sed",
-		"-ie",
-		fmt.Sprintf("s/port:\\ 8545/port:\\ %v/g %v >> %v", port, migrationConfigurationFileName,
-			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("sed -ie \"s/port:\\ 8545/port:\\ %v/g\" %v >> %v", port,
+			migrationConfigurationFileName,
+			testVolumeMountpoint + "/" + execLogFilename),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
 	if err != nil {
@@ -66,6 +67,8 @@ func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAdd
 		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 	migrateCommand := []string{
+		"/bin/sh",
+		"-c",
 		fmt.Sprintf("yarn migrate:v0.4 >> %v",
 			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 	}
