@@ -12,7 +12,7 @@ const (
 	rpcPort       = 8545
 	discoveryPort = 30303
 
-	httpExposedApisString = "admin,eth"
+	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
 	keystoreFilename = "keystore"
 	privateNetworkId = 9
 	testVolumeMountpoint = "/test-volume"
