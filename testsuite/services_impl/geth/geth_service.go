@@ -49,12 +49,6 @@ func (service GethService) GetEnodeAddress() (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusOK {
-		/*bodyBytes, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return "", stacktrace.Propagate(err, "Errored in reading admin RPC api response.")
-		}
-		bodyString := string(bodyBytes)*/
-
 		nodeInfoResponse := new(NodeInfoResponse)
 		err = json.NewDecoder(resp.Body).Decode(nodeInfoResponse)
 		if err != nil {

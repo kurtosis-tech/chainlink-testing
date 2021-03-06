@@ -90,10 +90,17 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
 		gethDataRuntimeDirpath,
 		privateNetworkId)
-	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v",
+	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v ",
 		httpExposedApisString,
 		ipPlaceholder,
 		ipPlaceholder)
+	if initializer.gethBootstrapperService != nil {
+		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
+		if err != nil {
+			return nil, nil, stacktrace.Propagate(err, "Failed to get bootnode enode record.")
+		}
+		entrypointCommand += fmt.Sprintf("--bootnodes %v", bootnodeEnodeRecord)
+	}
 	entrypointArgs = []string{
 		"/bin/sh",
 		"-c",

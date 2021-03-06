@@ -68,23 +68,23 @@ func (network *ChainlinkNetwork) AddEthereumNode() (services.ServiceID, error) {
 	network.nextGethServiceId = network.nextGethServiceId + 1
 	serviceId := services.ServiceID(serviceIdStr)
 
-	/*initializer := api.NewApiContainerInitializer(network.gethServiceImage, network.gethBootsrapperService)
-	uncastedApiService, checker, err := network.networkCtx.AddService(serviceId, initializer)
+	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, network.gethBootsrapperService)
+	uncastedGethService, checker, err := network.networkCtx.AddService(serviceId, initializer)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred adding the ethereum node")
 	}
 	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred waiting for the ethereum node to start")
 	}
-	castedApiService := uncastedApiService.(*api.ApiService)
-	network.apiServices[serviceId] = castedApiService*/
+	castedGethService := uncastedGethService.(*geth.GethService)
+	network.gethServices[serviceId] = castedGethService
 	return serviceId, nil
 }
-/*
-func (network *ChainlinkNetwork) GetApiService(serviceId services.ServiceID) (*api.ApiService, error) {
-	service, found := network.apiServices[serviceId]
+
+func (network *ChainlinkNetwork) GetGethService(serviceId services.ServiceID) (*geth.GethService, error) {
+	service, found := network.gethServices[serviceId]
 	if !found {
-		return nil, stacktrace.NewError("No API service with ID '%v' has been added", serviceId)
+		return nil, stacktrace.NewError("No geth service with ID '%v' has been added", serviceId)
 	}
 	return service, nil
-}*/
+}
