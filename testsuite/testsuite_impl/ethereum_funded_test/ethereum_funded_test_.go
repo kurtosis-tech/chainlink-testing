@@ -23,17 +23,16 @@ const (
 
 type EthereumFundedTest struct {
 	gethServiceImage string
-	validatorIds []services.ServiceID
+	firstValidatorId services.ServiceID
 }
 
 func NewEthereumFundedTest(gethServiceImage string) *EthereumFundedTest {
 	return &EthereumFundedTest{
 		gethServiceImage: gethServiceImage,
-		validatorIds: []services.ServiceID{},
 	}
 }
 
-func (test EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
+func (test *EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
 	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx, gethDataDirArtifactId, test.gethServiceImage)
 	err := chainlinkNetwork.AddBootstrapper()
 	if err != nil {
@@ -44,12 +43,13 @@ func (test EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (netwo
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "Failed to add an ethereum node.")
 		}
-		test.validatorIds = append(test.validatorIds, serviceId)
+		logrus.Infof("Added a geth service with id: %v", serviceId)
+		test.firstValidatorId = serviceId
 	}
 	return chainlinkNetwork, nil
 }
 
-func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.TestContext) {
+func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.TestContext) {
 	// Necessary because Go doesn't have generics
 	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
 
@@ -63,7 +63,7 @@ func (test EthereumFundedTest) Run(network networks.Network, testCtx testsuite.T
 	}
 	logrus.Infof("Bootnode enode record: %v", enodeRecord)
 
-	validatorService, err := chainlinkNetwork.GetGethService(test.validatorIds[0])
+	validatorService, err := chainlinkNetwork.GetGethService(test.firstValidatorId)
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, ""))
 	}
