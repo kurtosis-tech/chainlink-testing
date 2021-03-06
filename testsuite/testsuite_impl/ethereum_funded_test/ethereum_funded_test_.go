@@ -15,7 +15,7 @@ const (
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxPolls = 15
-	numberOfExtraNodes = 1
+	numberOfExtraNodes = 2
 
 	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
 	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.us-east-1.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
@@ -64,18 +64,20 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 	}
 	logrus.Infof("Bootnode enode record: %v", enodeRecord)
 
-	validatorService, err := chainlinkNetwork.GetGethService(test.validatorIds[0])
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, ""))
+	for i := 0; i < numberOfExtraNodes; i++ {
+		validatorService, err := chainlinkNetwork.GetGethService(test.validatorIds[i])
+		if err != nil {
+			testCtx.Fatal(stacktrace.Propagate(err, ""))
+		}
+		enodeRecord, err = validatorService.GetEnodeAddress()
+		if err != nil {
+			testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the validator enodeRecord."))
+		}
+		logrus.Infof("Validator enode record: %v", enodeRecord)
 	}
-	enodeRecord, err = validatorService.GetEnodeAddress()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the validator enodeRecord."))
-	}
-	logrus.Infof("Validator enode record: %v", enodeRecord)
 
 
-	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Bootnode did not become available."))
+	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Network did not become available."))
 }
 
 
