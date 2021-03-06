@@ -59,7 +59,7 @@ func (network *ChainlinkNetwork) GetBootstrapper() *geth.GethService {
 	return network.gethBootsrapperService
 }
 
-func (network *ChainlinkNetwork) AddEthereumNode() (services.ServiceID, error) {
+func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {
 	if (network.gethBootsrapperService == nil) {
 		return "", stacktrace.NewError("Cannot add ethereum node to network; no bootstrap node exists")
 	}
