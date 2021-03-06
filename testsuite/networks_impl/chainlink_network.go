@@ -97,7 +97,7 @@ func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 				return stacktrace.Propagate(err, "Failed to call addPeer endpoint to add peer with enode %v", peerGethServiceEnode)
 			}
 			if !ok {
-				return stacktrace.NewError("addPeer endpoint returned false on service %v", nodeId)
+				return stacktrace.NewError("addPeer endpoint returned false on service %v, adding peer %v", nodeId, peerGethServiceEnode)
 			}
 		}
 	}
