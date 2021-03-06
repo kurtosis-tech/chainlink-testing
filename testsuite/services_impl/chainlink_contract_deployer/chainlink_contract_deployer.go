@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/palantir/stacktrace"
+	"os"
 )
 
 const (
 	migrationConfigurationFileName = "truffle-config.js"
+	execLogFilename = "dockerExecLogs.log"
 
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
 	testVolumeMountpoint = "/test-volume"
@@ -25,7 +27,9 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationIPAddress(nod
 	overwriteMigrationIPAddressCommand := []string{
 		"sed",
 		"-ie",
-		fmt.Sprintf("s/host:\\ 'localhost'/host:\\ '%v'/g %v", nodeIpAddress, migrationConfigurationFileName),
+		fmt.Sprintf("s/host:\\ 'localhost'/host:\\ '%v'/g %v >> %v", nodeIpAddress,
+			migrationConfigurationFileName,
+			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
 	if err != nil {
@@ -40,7 +44,8 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port str
 	overwriteMigrationPortCommand := []string{
 		"sed",
 		"-ie",
-		fmt.Sprintf("s/port:\\ 8545/port:\\ %v/g %v", port, migrationConfigurationFileName),
+		fmt.Sprintf("s/port:\\ 8545/port:\\ %v/g %v >> %v", port, migrationConfigurationFileName,
+			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
 	if err != nil {
@@ -61,8 +66,8 @@ func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAdd
 		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 	migrateCommand := []string{
-		"yarn",
-		"migrate:v0.4",
+		fmt.Sprintf("yarn migrate:v0.4 >> %v",
+			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(migrateCommand)
 	if err != nil {
