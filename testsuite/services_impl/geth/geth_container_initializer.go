@@ -19,6 +19,8 @@ const (
 	genesisJsonFilename = "genesis.json"
 	gethDataMountedDirpath = "/geth-mounted-data"
 
+	firstAccountPublicKey = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
+
 	// The geth node opens a socket for IPC communication in the data directory.
 	// This socket opening does not work on mounted filesystems, so runtime data directory needs to be off the mount.
 	// See: https://github.com/ethereum/go-ethereum/issues/16342
@@ -98,7 +100,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		ipPlaceholder,
 		ipPlaceholder)
 	if initializer.isMiner {
-		entrypointCommand += "--mine --miner.threads=1 --miner.etherbase=0x0000000000000000000000000000000000000000 "
+		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v ", firstAccountPublicKey)
 	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
