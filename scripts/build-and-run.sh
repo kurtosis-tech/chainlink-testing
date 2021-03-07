@@ -26,8 +26,8 @@ fi
 
 # >>>>>>>> Add custom testsuite parameters here <<<<<<<<<<<<<
 custom_params_json='{
-    "apiServiceImage" :"kurtosistech/example-microservices_api",
-    "datastoreServiceImage": "kurtosistech/example-microservices_datastore",
+    "gethServiceImage" :"ethereum/client-go:latest",
+    "chainlinkContractDeployerImage": "kurtosistech/chainlink-contract-deployer:latest",
     "isKurtosisCoreDevMode": false
 }'
 # >>>>>>>> Add custom testsuite parameters here <<<<<<<<<<<<<

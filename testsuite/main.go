@@ -42,7 +42,7 @@ func main() {
 	flag.Parse()
 
 	// >>>>>>>>>>>>>>>>>>> REPLACE WITH YOUR OWN CONFIGURATOR <<<<<<<<<<<<<<<<<<<<<<<<
-	configurator := execution_impl.NewExampleTestsuiteConfigurator()
+	configurator := execution_impl.NewChainlinkTestsuiteConfigurator()
 	// >>>>>>>>>>>>>>>>>>> REPLACE WITH YOUR OWN CONFIGURATOR <<<<<<<<<<<<<<<<<<<<<<<<
 
 	suiteExecutor := execution.NewTestSuiteExecutor(*kurtosisApiSocketArg, *logLevelArg, *customParamsJsonArg, configurator)
