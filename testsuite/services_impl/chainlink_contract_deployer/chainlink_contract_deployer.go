@@ -103,11 +103,11 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 			devNetworkId,
 			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 	}
-	errorCode, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
+	// We don't check the error code here because the fund-contract script from Chainlink
+	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
+	_, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
-	} else if errorCode != 0 {
-		return stacktrace.NewError("Got a non-zero exit code executing $LINK funding command: %v", errorCode)
 	}
 	return nil
 }
