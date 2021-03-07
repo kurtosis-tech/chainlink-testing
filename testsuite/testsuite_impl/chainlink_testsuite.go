@@ -2,7 +2,7 @@ package testsuite_impl
 
 import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/testsuite"
-	"github.com/kurtosistech/chainlink-testing/testsuite/testsuite_impl/ethereum_funded_test"
+	"github.com/kurtosistech/chainlink-testing/testsuite/testsuite_impl/link_contract_initialization_test"
 )
 
 type ChainlinkTestsuite struct {
@@ -19,7 +19,7 @@ func NewChainlinkTestsuite(gethServiceImage string, chainlinkContractDeployerIma
 
 func (suite ChainlinkTestsuite) GetTests() map[string]testsuite.Test {
 	tests := map[string]testsuite.Test{
-		"ethereumFundedTest": ethereum_funded_test.NewEthereumFundedTest(suite.gethServiceImage, suite.chainlinkContractDeployerImage),
+		"linkContractInitializationTest": link_contract_initialization_test.NewLinkContractInitializationTest(suite.gethServiceImage, suite.chainlinkContractDeployerImage),
 	}
 	return tests
 }

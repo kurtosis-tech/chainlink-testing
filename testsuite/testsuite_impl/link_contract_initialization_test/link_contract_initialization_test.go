@@ -1,4 +1,4 @@
-package ethereum_funded_test
+package link_contract_initialization_test
 
 import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
@@ -17,21 +17,21 @@ const (
 	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.us-east-1.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
 )
 
-type EthereumFundedTest struct {
+type LinkContractInitializationTest struct {
 	gethServiceImage string
 	chainlinkContractDeployerImage string
 	validatorIds []services.ServiceID
 }
 
-func NewEthereumFundedTest(gethServiceImage string, chainlinkContractDeployerImage string) *EthereumFundedTest {
-	return &EthereumFundedTest{
+func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContractDeployerImage string) *LinkContractInitializationTest {
+	return &LinkContractInitializationTest{
 		gethServiceImage: gethServiceImage,
 		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
 		validatorIds: []services.ServiceID{},
 	}
 }
 
-func (test *EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
+func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
 	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx, gethDataDirArtifactId, test.gethServiceImage, test.chainlinkContractDeployerImage)
 	err := chainlinkNetwork.AddBootstrapper()
 	if err != nil {
@@ -49,7 +49,7 @@ func (test *EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (netw
 	return chainlinkNetwork, nil
 }
 
-func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.TestContext) {
+func (test *LinkContractInitializationTest) Run(network networks.Network, testCtx testsuite.TestContext) {
 	// Necessary because Go doesn't have generics
 	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
 
@@ -92,7 +92,7 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 }
 
 
-func (test *EthereumFundedTest) GetTestConfiguration() testsuite.TestConfiguration {
+func (test *LinkContractInitializationTest) GetTestConfiguration() testsuite.TestConfiguration {
 	return testsuite.TestConfiguration{
 		FilesArtifactUrls: map[services.FilesArtifactID]string{
 			gethDataDirArtifactId: gethDataDirArtifactUrl,
@@ -100,11 +100,11 @@ func (test *EthereumFundedTest) GetTestConfiguration() testsuite.TestConfigurati
 	}
 }
 
-func (test *EthereumFundedTest) GetExecutionTimeout() time.Duration {
+func (test *LinkContractInitializationTest) GetExecutionTimeout() time.Duration {
 	return 30000 * time.Second
 }
 
-func (test *EthereumFundedTest) GetSetupTimeout() time.Duration {
+func (test *LinkContractInitializationTest) GetSetupTimeout() time.Duration {
 	return 30000 * time.Second
 }
 
