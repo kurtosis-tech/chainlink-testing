@@ -13,6 +13,7 @@ import (
 const (
 	migrationConfigurationFileName = "truffle-config.js"
 	execLogFilename = "dockerExecLogs.log"
+	defaultTruffleConfigHost = "127.0.0.1"
 
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
 	testVolumeMountpoint = "/test-volume"
@@ -30,7 +31,9 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationIPAddress(nod
 	overwriteMigrationIPAddressCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("sed -ie \"s/host:\\ 'localhost'/host:\\ '%v'/g\" %v >> %v", nodeIpAddress,
+		fmt.Sprintf("sed -ie \"s/host:\\ '%v'/host:\\ '%v'/g\" %v >> %v",
+			defaultTruffleConfigHost,
+			nodeIpAddress,
 			migrationConfigurationFileName,
 			testVolumeMountpoint + "/" + execLogFilename),
 	}
@@ -78,7 +81,7 @@ func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAdd
 	migrateCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("yarn migrate:v0.4 >> %v",
+		fmt.Sprintf("yarn migrate:dev >> %v",
 			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(migrateCommand)
