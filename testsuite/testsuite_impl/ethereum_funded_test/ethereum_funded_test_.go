@@ -11,10 +11,6 @@ import (
 )
 
 const (
-	gethBootnodeServiceId services.ServiceID = "bootnode"
-
-	waitForStartupTimeBetweenPolls = 1 * time.Second
-	waitForStartupMaxPolls = 15
 	numberOfExtraNodes = 2
 
 	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
@@ -56,10 +52,8 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 	// Necessary because Go doesn't have generics
 	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
 
+	/*
 	bootstrapperService := chainlinkNetwork.GetBootstrapper()
-
-	isAvailable := bootstrapperService.IsAvailable()
-
 	enodeRecord, err := bootstrapperService.GetEnodeAddress()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the bootstrap enodeRecord."))
@@ -76,8 +70,10 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 			testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the validator enodeRecord."))
 		}
 		logrus.Infof("Validator enode record: %v", enodeRecord)
-	}
-	err = chainlinkNetwork.ManuallyConnectPeers()
+	}*/
+
+	logrus.Infof("Manually connecting all nodes of the Ethereum network.")
+	err := chainlinkNetwork.ManuallyConnectPeers()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to manually connect peers in the network."))
 	}
@@ -86,31 +82,32 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to get peers of the bootstrapper."))
 	}
-	logrus.Infof("Bootstrap node peers: %+v", bootstrapPeers)
+	testCtx.AssertTrue(len(bootstrapPeers) == numberOfExtraNodes, stacktrace.NewError("Bootstrapper is not connected to all of the network."))
 
-	for i := 0; i < numberOfExtraNodes; i++ {
-		gethService, err := chainlinkNetwork.GetGethService(test.validatorIds[i])
+	for _, validatorId := range test.validatorIds {
+		gethService, err := chainlinkNetwork.GetGethService(validatorId)
 		if err != nil {
-			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get validator %v", test.validatorIds[i]))
+			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get validator %v", validatorId))
 		}
-		getPeers, err := gethService.GetPeers()
+		peers, err := gethService.GetPeers()
 		if err != nil {
-			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get peers of validator %v", test.validatorIds[i]))
+			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get peers of validator %v", validatorId))
 		}
-		logrus.Infof("Peers of validator %v: %+v", test.validatorIds[i], getPeers)
+		testCtx.AssertTrue(len(peers) == numberOfExtraNodes, stacktrace.NewError("Validator %v is not connected to all of the network.", validatorId))
 	}
 
+	logrus.Infof("Deploying $LINK contracts on the testnet.")
 	err = chainlinkNetwork.DeployChainlinkContract()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to deploy the $LINK contract on the network."))
 	}
 
+	logrus.Infof("Funding a $LINK wallet contract on the testnet.")
 	err = chainlinkNetwork.FundLinkWallet()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to fund a $LINK wallet on the network."))
 	}
 
-	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Network did not become available."))
 }
 
 
