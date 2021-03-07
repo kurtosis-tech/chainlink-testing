@@ -71,6 +71,7 @@ func (network *ChainlinkNetwork) FundLinkWallet() error {
 	if network.linkContractDeployerService == nil {
 		return stacktrace.NewError("Tried to fund $LINK wallet before deploying $LINK contract.")
 	}
+	time.Sleep(30000 * time.Second)
 	err := network.linkContractDeployerService.FundLinkWalletContract()
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred funding an initial $LINK wallet on the testnet.")
