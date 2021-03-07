@@ -7,13 +7,13 @@ import (
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"os"
-	"time"
 )
 
 const (
 	migrationConfigurationFileName = "truffle-config.js"
 	execLogFilename = "dockerExecLogs.log"
 	defaultTruffleConfigHost = "127.0.0.1"
+	devNetworkId = "cldev"
 
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
 	testVolumeMountpoint = "/test-volume"
@@ -21,13 +21,14 @@ const (
 
 type ChainlinkContractDeployerService struct {
 	serviceCtx *services.ServiceContext
+	isContractDeployed bool
 }
 
 func NewChainlinkContractDeployerService(serviceCtx *services.ServiceContext) *ChainlinkContractDeployerService {
 	return &ChainlinkContractDeployerService{serviceCtx: serviceCtx}
 }
 
-func (deployer ChainlinkContractDeployerService) overwriteMigrationIPAddress(nodeIpAddress string) error {
+func (deployer *ChainlinkContractDeployerService) overwriteMigrationIPAddress(nodeIpAddress string) error {
 	overwriteMigrationIPAddressCommand := []string{
 		"/bin/sh",
 		"-c",
@@ -46,7 +47,7 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationIPAddress(nod
 	return nil
 }
 
-func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port string) error {
+func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port string) error {
 	overwriteMigrationPortCommand := []string{
 		"/bin/sh",
 		"-c",
@@ -68,7 +69,7 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port str
 	return nil
 }
 
-func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) error {
+func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) error {
 	err := deployer.overwriteMigrationIPAddress(gethServiceIpAddress)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
@@ -90,8 +91,24 @@ func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAdd
 	} else if errorCode != 0 {
 		return stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}
-	// for debugging
-	time.Sleep(30000 * time.Second)
+	deployer.isContractDeployed = true
+	return nil
+}
+
+func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error {
+	fundLinkWalletCommand := []string{
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("npx truffle exec scripts/fund-contract.js --network %v >> %v",
+			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
+			devNetworkId,
+	}
+	errorCode, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
+	} else if errorCode != 0 {
+		return stacktrace.NewError("Got a non-zero exit code executing $LINK funding command: %v", errorCode)
+	}
 	return nil
 }
 
