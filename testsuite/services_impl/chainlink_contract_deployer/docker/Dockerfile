@@ -11,10 +11,6 @@ RUN npm install -g truffle
 RUN mkdir -p /chainlink
 WORKDIR /chainlink
 RUN truffle unbox smartcontractkit/box
-RUN yarn
-RUN truffle compile
-WORKDIR /LinkToken
-
 RUN yarn && yarn compile
 
 ENTRYPOINT /bin/sh
