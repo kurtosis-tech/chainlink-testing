@@ -13,7 +13,7 @@ const GenesisJson =
     "petersburgBlock": 0,
     "ethash": {}
   	},
-  	"difficulty": "1",
+  	"difficulty": "0x0",
   	"gasLimit": "8000000",
   	"alloc": {
     	"8ea1441a74ffbe9504a8cb3f7e4b7118d8ccfc56": { "balance": "30000000000000000000000000000000000" },

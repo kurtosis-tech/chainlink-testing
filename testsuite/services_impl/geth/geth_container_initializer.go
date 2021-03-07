@@ -110,7 +110,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		ipPlaceholder,
 		ipPlaceholder)
 	if initializer.isMiner {
-		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v", FirstAccountPublicKey, gasPrice)
+		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v ", FirstAccountPublicKey, gasPrice)
 	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
