@@ -59,6 +59,9 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	castedContractDeployer := uncastedContractDeployer.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
 	linkContractDeployerService := castedContractDeployer
 
+	// for debugging
+	time.Sleep(1500 * time.Second)
+
 	err = linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")

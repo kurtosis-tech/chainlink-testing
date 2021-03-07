@@ -119,10 +119,10 @@ func (test *EthereumFundedTest) GetTestConfiguration() testsuite.TestConfigurati
 }
 
 func (test *EthereumFundedTest) GetExecutionTimeout() time.Duration {
-	return 960 * time.Second
+	return 1500 * time.Second
 }
 
 func (test *EthereumFundedTest) GetSetupTimeout() time.Duration {
-	return 960 * time.Second
+	return 1500 * time.Second
 }
 

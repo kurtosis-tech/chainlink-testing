@@ -18,6 +18,8 @@ const (
 	testVolumeMountpoint = "/test-volume"
 	genesisJsonFilename = "genesis.json"
 	gethDataMountedDirpath = "/geth-mounted-data"
+	gethTgzDataDir = "geth-data-dir"
+	firstAccountPassword = "password"
 
 	FirstAccountPublicKey = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
 
@@ -89,7 +91,8 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	// This is a bootstrapper
-	entrypointCommand := fmt.Sprintf("cp -r %v %v && ", gethDataMountedDirpath, gethDataRuntimeDirpath)
+	// TODO TODO TODO fix tgz so that it doesn't contain the directory at the root
+	entrypointCommand := fmt.Sprintf("mkdir -p %v && cp -r %v/%v/* %v/ && ", gethDataRuntimeDirpath, gethDataMountedDirpath, gethTgzDataDir, gethDataRuntimeDirpath)
 	entrypointCommand += fmt.Sprintf("geth init --datadir %v %v && ", gethDataRuntimeDirpath, mountedFileFilepaths[genesisJsonFilename])
 	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
@@ -108,6 +111,9 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 			return nil, nil, stacktrace.Propagate(err, "Failed to get bootnode enode record.")
 		}
 		entrypointCommand += fmt.Sprintf("--bootnodes %v", bootnodeEnodeRecord)
+	} else {
+		// unlock the first account for use in spawning $LINK contract and distributing funds.
+		entrypointCommand += fmt.Sprintf("--unlock %v --password %v --allow-insecure-unlock", FirstAccountPublicKey, firstAccountPassword)
 	}
 	entrypointArgs = []string{
 		"/bin/sh",

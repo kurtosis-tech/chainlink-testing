@@ -5,6 +5,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -45,14 +46,15 @@ func (deployer ChainlinkContractDeployerService) overwriteMigrationPort(port str
 	overwriteMigrationPortCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("cat %v >> %v && sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v >> %v",
-			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename,
+		fmt.Sprintf("sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v >> %v && cat %v >> %v",
 			port,
 			geth.FirstAccountPublicKey,
 			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename),
+			testVolumeMountpoint + "/" + execLogFilename,
+			migrationConfigurationFileName,
+			testVolumeMountpoint + "/" + execLogFilename,),
 	}
+	logrus.Infof("migration command: %+v", overwriteMigrationPortCommand)
 	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute command on contract deployer service.")
