@@ -100,8 +100,8 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 		"/bin/sh",
 		"-c",
 		fmt.Sprintf("npx truffle exec scripts/fund-contract.js --network %v >> %v",
-			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 			devNetworkId,
+			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename)
 	}
 	errorCode, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
 	if err != nil {
