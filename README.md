@@ -1,9 +1,6 @@
-Chainlink - Geth Kurtosis Testsuite
+[WIP] Chainlink - Geth Kurtosis Testsuite
 =====================
-
-## WIP 
-
-In development as part of the first Chainlink/Kurtosis grant: https://blog.chain.link/kurtosis-awarded-a-grant-to-build-testing-platform-for-chainlink-oracle-networks/ .
+This is a work in progress, currently in development as part of the first Chainlink/Kurtosis grant: https://blog.chain.link/kurtosis-awarded-a-grant-to-build-testing-platform-for-chainlink-oracle-networks/ .
 
 ## Architecture
 
