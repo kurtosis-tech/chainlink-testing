@@ -28,6 +28,7 @@ type ChainlinkNetwork struct {
 	gethServices              map[services.ServiceID]*geth.GethService
 	nextGethServiceId         int
 	linkContractDeployerImage string
+	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string, linkContractDeployerImage string) *ChainlinkNetwork {
@@ -57,11 +58,22 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 		return stacktrace.Propagate(err, "An error occurred waiting for the $LINK contract deployer service to start")
 	}
 	castedContractDeployer := uncastedContractDeployer.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
-	linkContractDeployerService := castedContractDeployer
+	network.linkContractDeployerService = castedContractDeployer
 
-	err = linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
+	err = network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")
+	}
+	return nil
+}
+
+func (network *ChainlinkNetwork) FundLinkWallet() error {
+	if network.linkContractDeployerService == nil {
+		return stacktrace.NewError("Tried to fund $LINK wallet before deploying $LINK contract.")
+	}
+	err := network.linkContractDeployerService.FundLinkWalletContract()
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred funding an initial $LINK wallet on the testnet.")
 	}
 	return nil
 }

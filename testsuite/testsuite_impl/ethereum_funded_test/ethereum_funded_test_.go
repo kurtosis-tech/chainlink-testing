@@ -78,6 +78,9 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 		logrus.Infof("Validator enode record: %v", enodeRecord)
 	}
 	err = chainlinkNetwork.ManuallyConnectPeers()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "Failed to manually connect peers in the network."))
+	}
 
 	bootstrapPeers, err := chainlinkNetwork.GetBootstrapper().GetPeers()
 	if err != nil {
@@ -102,8 +105,9 @@ func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to deploy the $LINK contract on the network."))
 	}
 
+	err = chainlinkNetwork.FundLinkWallet()
 	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Failed to manually connect peers in the network."))
+		testCtx.Fatal(stacktrace.Propagate(err, "Failed to fund a $LINK wallet on the network."))
 	}
 
 	testCtx.AssertTrue(isAvailable, stacktrace.NewError("Network did not become available."))
