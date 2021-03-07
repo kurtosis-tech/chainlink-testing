@@ -75,8 +75,6 @@ func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAdd
 		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 
-	// for debugging
-	time.Sleep(1500 * time.Second)
 	migrateCommand := []string{
 		"/bin/sh",
 		"-c",
@@ -89,6 +87,8 @@ func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAdd
 	} else if errorCode != 0 {
 		return stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}
+	// for debugging
+	time.Sleep(30000 * time.Second)
 	return nil
 }
 
