@@ -7,6 +7,7 @@ import (
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"os"
+	"time"
 )
 
 const (
@@ -73,6 +74,9 @@ func (deployer ChainlinkContractDeployerService) DeployContract(gethServiceIpAdd
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
+
+	// for debugging
+	time.Sleep(1500 * time.Second)
 	migrateCommand := []string{
 		"/bin/sh",
 		"-c",

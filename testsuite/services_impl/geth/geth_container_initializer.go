@@ -17,6 +17,8 @@ const (
 	privateNetworkId = 9
 	testVolumeMountpoint = "/test-volume"
 	genesisJsonFilename = "genesis.json"
+	passwordFilename = "password.txt"
+	gasPrice = 1
 	gethDataMountedDirpath = "/geth-mounted-data"
 	gethTgzDataDir = "geth-data-dir"
 	firstAccountPassword = "password"
@@ -66,6 +68,7 @@ func (initializer GethContainerInitializer) GetServiceWrappingFunc() func(ctx *s
 func (initializer GethContainerInitializer) GetFilesToGenerate() map[string]bool {
 	return map[string]bool{
 		genesisJsonFilename: true,
+		passwordFilename: true,
 	}
 }
 
@@ -75,6 +78,10 @@ func (initializer GethContainerInitializer) InitializeGeneratedFiles(mountedFile
 	_, err := genesisFp.WriteString(genesisJson)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to write genesis config.")
+	}
+	_, err = mountedFiles[passwordFilename].WriteString(firstAccountPassword)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to write password file.")
 	}
 	return nil
 }
@@ -103,7 +110,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		ipPlaceholder,
 		ipPlaceholder)
 	if initializer.isMiner {
-		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v ", FirstAccountPublicKey)
+		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v", FirstAccountPublicKey, gasPrice)
 	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
@@ -113,7 +120,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		entrypointCommand += fmt.Sprintf("--bootnodes %v", bootnodeEnodeRecord)
 	} else {
 		// unlock the first account for use in spawning $LINK contract and distributing funds.
-		entrypointCommand += fmt.Sprintf("--unlock %v --password %v --allow-insecure-unlock", FirstAccountPublicKey, firstAccountPassword)
+		entrypointCommand += fmt.Sprintf("--unlock %v --password %v  --allow-insecure-unlock", FirstAccountPublicKey, mountedFileFilepaths[passwordFilename])
 	}
 	entrypointArgs = []string{
 		"/bin/sh",
