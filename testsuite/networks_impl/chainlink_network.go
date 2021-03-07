@@ -6,7 +6,6 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
-	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -144,10 +143,7 @@ func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 				return stacktrace.Propagate(err, "Failed to call addPeer endpoint to add peer with enode %v", peerGethServiceEnode)
 			}
 			if !ok {
-				//return stacktrace.NewError("addPeer endpoint returned false on service %v, adding peer %v", nodeId, peerGethServiceEnode)
-				logrus.Infof("AddPeer endpoint for nodeId %v connecting to peerId %v returned false.", nodeId, peerId)
-			} else {
-				logrus.Infof("AddPeer endpoint for nodeId %v connecting to peerId %v returned true.", nodeId, peerId)
+				return stacktrace.NewError("addPeer endpoint returned false on service %v, adding peer %v", nodeId, peerGethServiceEnode)
 			}
 		}
 	}

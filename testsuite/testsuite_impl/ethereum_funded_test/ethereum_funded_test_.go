@@ -37,6 +37,7 @@ func (test *EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (netw
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
 	}
+	logrus.Infof("Added a geth bootstrapper service.")
 	for i := 0; i < numberOfExtraNodes; i++ {
 		serviceId, err := chainlinkNetwork.AddGethService()
 		if err != nil {
@@ -51,26 +52,6 @@ func (test *EthereumFundedTest) Setup(networkCtx *networks.NetworkContext) (netw
 func (test *EthereumFundedTest) Run(network networks.Network, testCtx testsuite.TestContext) {
 	// Necessary because Go doesn't have generics
 	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
-
-	/*
-	bootstrapperService := chainlinkNetwork.GetBootstrapper()
-	enodeRecord, err := bootstrapperService.GetEnodeAddress()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the bootstrap enodeRecord."))
-	}
-	logrus.Infof("Bootnode enode record: %v", enodeRecord)
-
-	for i := 0; i < numberOfExtraNodes; i++ {
-		validatorService, err := chainlinkNetwork.GetGethService(test.validatorIds[i])
-		if err != nil {
-			testCtx.Fatal(stacktrace.Propagate(err, ""))
-		}
-		enodeRecord, err = validatorService.GetEnodeAddress()
-		if err != nil {
-			testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the validator enodeRecord."))
-		}
-		logrus.Infof("Validator enode record: %v", enodeRecord)
-	}*/
 
 	logrus.Infof("Manually connecting all nodes of the Ethereum network.")
 	err := chainlinkNetwork.ManuallyConnectPeers()
