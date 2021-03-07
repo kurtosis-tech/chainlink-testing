@@ -111,10 +111,10 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		ipPlaceholder,
 		ipPlaceholder)
 	if initializer.isMiner {
-		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gastarget=%v",
+		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gastarget=%v ",
 			FirstAccountPublicKey, gasPrice, gasTarget)
 		// unlock the first account for use in spawning $LINK contract and distributing funds.
-		entrypointCommand += fmt.Sprintf("--unlock %v --password %v  --allow-insecure-unlock", FirstAccountPublicKey, mountedFileFilepaths[passwordFilename])
+		entrypointCommand += fmt.Sprintf("--unlock %v --password %v  --allow-insecure-unlock ", FirstAccountPublicKey, mountedFileFilepaths[passwordFilename])
 	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
