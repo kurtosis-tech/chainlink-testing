@@ -5,6 +5,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -37,7 +38,8 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationIPAddress(no
 			migrationConfigurationFileName,
 			testVolumeMountpoint + "/" + execLogFilename),
 	}
-	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
+	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
+	logrus.Infof("Log Output from %+v, %s", overwriteMigrationIPAddressCommand, string(*logOutput))
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute command on contract deployer service.")
 	} else if errorCode != 0 {
@@ -58,7 +60,8 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 			migrationConfigurationFileName,
 			testVolumeMountpoint + "/" + execLogFilename,),
 	}
-	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
+	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
+	logrus.Infof("Log Output from %+v, %s", overwriteMigrationPortCommand, string(*logOutput))
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute command on contract deployer service.")
 	} else if errorCode != 0 {
@@ -83,7 +86,8 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 		fmt.Sprintf("yarn migrate:dev >> %v",
 			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
 	}
-	errorCode, err := deployer.serviceCtx.ExecCommand(migrateCommand)
+	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(migrateCommand)
+	logrus.Infof("Log Output from %+v, %s", migrationConfigurationFileName, string(*logOutput))
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
 	} else if errorCode != 0 {
@@ -103,7 +107,8 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 	}
 	// We don't check the error code here because the fund-contract script from Chainlink
 	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
-	_, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
+	_, logOutput, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
+	logrus.Infof("Log Output from %+v, %s", fundLinkWalletCommand, string(*logOutput))
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
 	}
