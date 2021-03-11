@@ -53,7 +53,6 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 		fmt.Sprintf("sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v",
 			port,
 			geth.FirstAccountPublicKey,
-			migrationConfigurationFileName,
 			migrationConfigurationFileName,),
 	}
 	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
