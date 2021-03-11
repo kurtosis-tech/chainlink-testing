@@ -6,7 +6,6 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
-	"os"
 )
 
 const (
@@ -32,11 +31,10 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationIPAddress(no
 	overwriteMigrationIPAddressCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("sed -ie \"s/host:\\ '%v'/host:\\ '%v'/g\" %v >> %v",
+		fmt.Sprintf("sed -ie \"s/host:\\ '%v'/host:\\ '%v'/g\" %v",
 			defaultTruffleConfigHost,
 			nodeIpAddress,
-			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename),
+			migrationConfigurationFileName),
 	}
 	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
 	logrus.Infof("Log Output from %+v, %s", overwriteMigrationIPAddressCommand, string(*logOutput))
@@ -52,13 +50,11 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 	overwriteMigrationPortCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v >> %v && cat %v >> %v",
+		fmt.Sprintf("sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v",
 			port,
 			geth.FirstAccountPublicKey,
 			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename,
-			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename,),
+			migrationConfigurationFileName,),
 	}
 	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
 	logrus.Infof("Log Output from %+v, %s", overwriteMigrationPortCommand, string(*logOutput))
@@ -83,8 +79,7 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 	migrateCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("yarn migrate:dev >> %v",
-			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
+		fmt.Sprintf("yarn migrate:dev",),
 	}
 	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(migrateCommand)
 	logrus.Infof("Log Output from %+v, %s", migrationConfigurationFileName, string(*logOutput))
@@ -101,9 +96,8 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 	fundLinkWalletCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("npx truffle exec scripts/fund-contract.js --network %v >> %v",
-			devNetworkId,
-			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
+		fmt.Sprintf("npx truffle exec scripts/fund-contract.js --network %v",
+			devNetworkId,),
 	}
 	// We don't check the error code here because the fund-contract script from Chainlink
 	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
