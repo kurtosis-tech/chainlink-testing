@@ -28,6 +28,7 @@ fi
 custom_params_json='{
     "gethServiceImage" :"ethereum/client-go:latest",
     "chainlinkContractDeployerImage": "kurtosistech/chainlink-contract-deployer:latest",
+    "chainlinkOracleImage": "smartcontract/chainlink:0.10.2"
     "isKurtosisCoreDevMode": false
 }'
 # >>>>>>>> Add custom testsuite parameters here <<<<<<<<<<<<<
