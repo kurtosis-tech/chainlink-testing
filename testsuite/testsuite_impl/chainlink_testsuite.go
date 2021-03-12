@@ -8,18 +8,27 @@ import (
 type ChainlinkTestsuite struct {
 	gethServiceImage string
 	chainlinkContractDeployerImage string
+	chainlinkOracleImage string
+	postgresImage string
 }
 
-func NewChainlinkTestsuite(gethServiceImage string, chainlinkContractDeployerImage string) *ChainlinkTestsuite {
+func NewChainlinkTestsuite(gethServiceImage string, chainlinkContractDeployerImage string,
+	chainlinkOracleImage string, postgresImage string) *ChainlinkTestsuite {
 	return &ChainlinkTestsuite{
 		gethServiceImage: gethServiceImage,
 		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
+		chainlinkOracleImage: chainlinkOracleImage,
+		postgresImage: postgresImage,
 	}
 }
 
 func (suite ChainlinkTestsuite) GetTests() map[string]testsuite.Test {
 	tests := map[string]testsuite.Test{
-		"linkContractInitializationTest": link_contract_initialization_test.NewLinkContractInitializationTest(suite.gethServiceImage, suite.chainlinkContractDeployerImage),
+		"linkContractInitializationTest": link_contract_initialization_test.NewLinkContractInitializationTest(
+			suite.gethServiceImage,
+			suite.chainlinkContractDeployerImage,
+			suite.chainlinkOracleImage,
+			suite.postgresImage,),
 	}
 	return tests
 }

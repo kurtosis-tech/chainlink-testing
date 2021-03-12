@@ -2,6 +2,12 @@ package chainlink_oracle
 
 import "fmt"
 
+const (
+	oracleEmail = "user@example.com"
+	oraclePassword = "password"
+	oracleWalletPassword = "walletPassword"
+)
+
 
 // ==========================================================================================
 //								Helper methods
@@ -22,4 +28,13 @@ ETH_URL=ws://%v:%v
 DATABASE_URL=postgresql://%v:%v@%v:%v/%v`, chainId, contractAddress,
 	gethClientIp, gethClientWsPort,
 	postgresUsername, postgresPassword, postgresServer, postgresPort, postgresDatabase)
+}
+
+func getOracleApiFile(username string, password string) string {
+	return fmt.Sprintf(`%v
+%v`, username, password)
+}
+
+func getOraclePasswordFile(walletPassword string) string {
+	return fmt.Sprintf("%v", walletPassword)
 }

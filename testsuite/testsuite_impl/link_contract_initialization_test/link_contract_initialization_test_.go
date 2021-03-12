@@ -20,13 +20,18 @@ const (
 type LinkContractInitializationTest struct {
 	gethServiceImage string
 	chainlinkContractDeployerImage string
+	chainlinkOracleImage string
+	postgresImage string
 	validatorIds []services.ServiceID
 }
 
-func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContractDeployerImage string) *LinkContractInitializationTest {
+func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContractDeployerImage string,
+	chainlinkOracleImage string, postgresImage string) *LinkContractInitializationTest {
 	return &LinkContractInitializationTest{
 		gethServiceImage: gethServiceImage,
 		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
+		chainlinkOracleImage: chainlinkOracleImage,
+		postgresImage: postgresImage,
 		validatorIds: []services.ServiceID{},
 	}
 }
