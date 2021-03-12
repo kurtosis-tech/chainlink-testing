@@ -37,7 +37,11 @@ func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContrac
 }
 
 func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
-	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx, gethDataDirArtifactId, test.gethServiceImage, test.chainlinkContractDeployerImage)
+	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx,
+		gethDataDirArtifactId,
+		test.gethServiceImage,
+		test.chainlinkContractDeployerImage,
+		test.postgresImage,)
 	err := chainlinkNetwork.AddBootstrapper()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")

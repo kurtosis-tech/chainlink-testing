@@ -29,9 +29,11 @@ type ChainlinkNetwork struct {
 	linkTokenAddress		  string
 	linkContractDeployerImage string
 	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
+	postgresImage			  string
 }
 
-func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID, gethServiceImage string, linkContractDeployerImage string) *ChainlinkNetwork {
+func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
+	gethServiceImage string, linkContractDeployerImage string, postgresImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
 		networkCtx:                networkCtx,
 		gethDataDirArtifactId:     gethDataDirArtifactId,
@@ -41,6 +43,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		nextGethServiceId:         0,
 		linkTokenAddress:          "",
 		linkContractDeployerImage: linkContractDeployerImage,
+		postgresImage: postgresImage,
 	}
 }
 

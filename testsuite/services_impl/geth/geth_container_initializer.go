@@ -17,8 +17,6 @@ const (
 	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
 	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
 	keystoreFilename = "keystore"
-	privateNetworkId = 9
-	testVolumeMountpoint = "/test-volume"
 	genesisJsonFilename = "genesis.json"
 	passwordFilename = "password.txt"
 	gasPrice = 1
@@ -33,6 +31,9 @@ const (
 	// This socket opening does not work on mounted filesystems, so runtime data directory needs to be off the mount.
 	// See: https://github.com/ethereum/go-ethereum/issues/16342
 	gethDataRuntimeDirpath = "/data"
+
+	PrivateNetworkId     = 9
+	TestVolumeMountpoint = "/test-volume"
 )
 
 type GethContainerInitializer struct {
@@ -98,7 +99,7 @@ func (initializer GethContainerInitializer) GetFilesArtifactMountpoints() map[se
 }
 
 func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
-	return testVolumeMountpoint
+	return TestVolumeMountpoint
 }
 
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
@@ -109,7 +110,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
 		gethDataRuntimeDirpath,
-		privateNetworkId)
+		PrivateNetworkId)
 	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v ",
 		httpExposedApisString,
 		ipPlaceholder,

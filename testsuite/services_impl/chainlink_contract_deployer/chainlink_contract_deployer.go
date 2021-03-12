@@ -21,7 +21,7 @@ const (
 	oracleContractSplitter = "Deploying 'Oracle'\n"
 
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
-	testVolumeMountpoint = "/test-volume"
+	testVolumeMountpoint = geth.TestVolumeMountpoint
 )
 
 type ChainlinkContractDeployerService struct {

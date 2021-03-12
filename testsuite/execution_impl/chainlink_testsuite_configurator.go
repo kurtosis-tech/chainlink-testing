@@ -39,7 +39,8 @@ func (t ChainlinkTestsuiteConfigurator) ParseParamsAndCreateSuite(paramsJsonStr 
 		return nil, stacktrace.Propagate(err, "An error occurred validating the deserialized testsuite params")
 	}
 
-	suite := testsuite_impl.NewChainlinkTestsuite(args.GethServiceImage, args.ChainlinkContractDeployerImage)
+	suite := testsuite_impl.NewChainlinkTestsuite(args.GethServiceImage, args.ChainlinkContractDeployerImage,
+		args.ChainlinkOracleImage, args.PostgresImage)
 	return suite, nil
 }
 
