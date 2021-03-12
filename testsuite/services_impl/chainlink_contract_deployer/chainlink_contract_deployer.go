@@ -86,7 +86,7 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 	}
 	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(migrateCommand)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
+		return "", stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
 	} else if errorCode != 0 {
 		return "", stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}

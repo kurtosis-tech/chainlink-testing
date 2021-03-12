@@ -110,6 +110,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		httpExposedApisString,
 		ipPlaceholder,
 		ipPlaceholder)
+	entrypointCommand += fmt.Sprintf("--ws --wsaddr %v --wsorigins=\"*\" ", ipPlaceholder)
 	if initializer.isMiner {
 		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gastarget=%v ",
 			FirstAccountPublicKey, gasPrice, gasTarget)
