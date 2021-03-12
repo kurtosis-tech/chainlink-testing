@@ -69,14 +69,14 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 	return nil
 }
 
-func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) error {
+func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) (string, error) {
 	err := deployer.overwriteMigrationIPAddress(gethServiceIpAddress)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
+		return "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 	err = deployer.overwriteMigrationPort(gethServicePort)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
+		return "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 
 	migrateCommand := []string{
@@ -88,16 +88,16 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
 	} else if errorCode != 0 {
-		return stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
+		return "", stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}
 	logOutputStr := string(*logOutput)
 	address, err := parseContractAddressFromTruffleMigrate(logOutputStr)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to parse contract address.")
+		return "", stacktrace.Propagate(err, "Failed to parse contract address.")
 	}
 	logrus.Infof("LinkToken contract info: %v", address)
 	deployer.isContractDeployed = true
-	return nil
+	return address, nil
 }
 
 func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error {
