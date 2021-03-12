@@ -6,6 +6,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
+	"strings"
 )
 
 const (
@@ -81,12 +82,17 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 		fmt.Sprintf("yarn migrate:dev",),
 	}
 	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(migrateCommand)
-	logrus.Infof("Log Output from %+v, %s", migrationConfigurationFileName, string(*logOutput))
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
 	} else if errorCode != 0 {
 		return stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}
+	logOutputStr := string(*logOutput)
+	splitOnLinkTokenContract := strings.Split(logOutputStr, "Deploying 'LinkToken'\n")
+	splitOnOracleContract := strings.Split(splitOnLinkTokenContract[1], "Deploying 'Oracle'\n")
+	linkTokenContractInfo := splitOnOracleContract[0]
+	logrus.Infof("Log Output from %+v, %s", migrationConfigurationFileName, string(*logOutput))
+	logrus.Infof("LinkToken contract info: %v", linkTokenContractInfo)
 	deployer.isContractDeployed = true
 	return nil
 }
