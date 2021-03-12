@@ -5,14 +5,17 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/data"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"os"
 )
 
 const (
 	rpcPort       = 8545
+	wsPort 		  = 8546
 	discoveryPort = 30303
 
 	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
+	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
 	keystoreFilename = "keystore"
 	privateNetworkId = 9
 	testVolumeMountpoint = "/test-volume"
@@ -55,6 +58,7 @@ func (initializer GethContainerInitializer) GetDockerImage() string {
 func (initializer GethContainerInitializer) GetUsedPorts() map[string]bool {
 	return map[string]bool{
 		fmt.Sprintf("%v/tcp", rpcPort):       true,
+		fmt.Sprintf("%v/tcp", wsPort):       true,
 		fmt.Sprintf("%v/udp", discoveryPort): true,
 		fmt.Sprintf("%v/tcp", discoveryPort): true,
 	}
@@ -110,7 +114,8 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		httpExposedApisString,
 		ipPlaceholder,
 		ipPlaceholder)
-	entrypointCommand += fmt.Sprintf("--ws --wsaddr %v --wsorigins=\"*\" ", ipPlaceholder)
+	// Chainlink oracles require websocket communication
+	entrypointCommand += fmt.Sprintf("--ws --ws.addr %v --ws.port %v --ws.api %v --ws.origins=\"*\" ", ipPlaceholder, wsPort, wsExposedApisString)
 	if initializer.isMiner {
 		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gastarget=%v ",
 			FirstAccountPublicKey, gasPrice, gasTarget)
@@ -124,6 +129,8 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		}
 		entrypointCommand += fmt.Sprintf("--bootnodes %v", bootnodeEnodeRecord)
 	}
+
+	logrus.Infof("Entrypoint command: %v", entrypointCommand)
 
 	entrypointArgs = []string{
 		"/bin/sh",
