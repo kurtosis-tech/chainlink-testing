@@ -26,6 +26,7 @@ type ChainlinkNetwork struct {
 	gethBootsrapperService    *geth.GethService
 	gethServices              map[services.ServiceID]*geth.GethService
 	nextGethServiceId         int
+	linkTokenAddress		  string
 	linkContractDeployerImage string
 	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
 }
@@ -38,6 +39,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		gethBootsrapperService:    nil,
 		gethServices:              map[services.ServiceID]*geth.GethService{},
 		nextGethServiceId:         0,
+		linkTokenAddress:          "",
 		linkContractDeployerImage: linkContractDeployerImage,
 	}
 }
@@ -59,10 +61,11 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	castedContractDeployer := uncastedContractDeployer.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
 	network.linkContractDeployerService = castedContractDeployer
 
-	err = network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
+	address, err := network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")
 	}
+	network.linkTokenAddress = address
 	return nil
 }
 
