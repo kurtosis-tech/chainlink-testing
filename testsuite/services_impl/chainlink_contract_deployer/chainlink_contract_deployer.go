@@ -133,7 +133,7 @@ func parseContractAddressFromTruffleMigrate(logOutputStr string) (string, error)
 	splitOnLinkTokenContract := strings.Split(logOutputStr, linkTokenContractSplitter)
 	splitCount := len(splitOnLinkTokenContract)
 	if splitCount != 2 {
-		return "", stacktrace.NewError("Expected truffle migrate command output to split into two on %v, instead split into %v",
+		return "", stacktrace.NewError("Expected truffle migrate command output to split into two on %+v, instead split into %v",
 			linkTokenContractSplitter,
 			splitCount)
 	}
@@ -154,9 +154,9 @@ func parseContractAddressFromTruffleMigrate(logOutputStr string) (string, error)
 	}
 	splitOnAddressContent := strings.Split(strings.TrimSpace(splitOnContractAddress[1]), addressContentSplitter)
 	splitCount = len(splitOnAddressContent)
-	if splitCount != 2 {
-		return "", stacktrace.NewError("Expected address content to split into two on %v, instead split into %v",
-			splitOnAddressContent,
+	if splitCount < 2 {
+		return "", stacktrace.NewError("Expected address content to split into at least two on %v, instead split into %v",
+			addressContentSplitter,
 			splitCount)
 	}
 	address := splitOnAddressContent[0]
