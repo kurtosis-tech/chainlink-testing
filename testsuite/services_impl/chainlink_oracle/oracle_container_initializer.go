@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
+	"github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -12,16 +14,27 @@ const (
 	oraclePassword = "password"
 	oracleWalletPassword = "walletPassword"
 
+	passwordFileKey = "password-file"
+	apiFileKey = "api-file"
+	envFileKey = "env-file"
+
 	port = 6688
 )
 
 type ChainlinkOracleInitializer struct {
-	dockerImage string
+	dockerImage         string
+	linkContractAddress string
+	gethClient	*geth.GethService
+	postgresService	*postgres.PostgresService
 }
 
-func NewChainlinkOracleContainerInitializer(dockerImage string) *ChainlinkOracleInitializer {
+func NewChainlinkOracleContainerInitializer(dockerImage string, linkContractAddress string,
+	gethClient *geth.GethService, postgresService *postgres.PostgresService) *ChainlinkOracleInitializer {
 	return &ChainlinkOracleInitializer{
-		dockerImage: dockerImage,
+		dockerImage:         dockerImage,
+		linkContractAddress: linkContractAddress,
+		gethClient: gethClient,
+		postgresService: postgresService,
 	}
 }
 
@@ -42,10 +55,21 @@ func (initializer ChainlinkOracleInitializer) GetServiceWrappingFunc() func(ctx 
 }
 
 func (initializer ChainlinkOracleInitializer) GetFilesToGenerate() map[string]bool {
-	return map[string]bool{}
+	return map[string]bool{
+		envFileKey: true,
+		passwordFileKey: true,
+		apiFileKey: true,
+	}
 }
 
 func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {
+	envFileString := getOracleEnvFile(
+		string(geth.PrivateNetworkId), initializer.linkContractAddress,
+		initializer.gethClient.GetIPAddress(), string(initializer.gethClient.GetWsPort()),
+		initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
+		initializer.postgresService.GetIPAddress(), string(initializer.postgresService.GetPort()),
+		initializer.postgresService.GetDatabaseName())
+	logrus.Infof("Env File: \n%v", envFileString)
 	return nil
 }
 
@@ -59,18 +83,19 @@ func (initializer ChainlinkOracleInitializer) GetTestVolumeMountpoint() string {
 
 func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	entrypointArgs = []string{
-		"/bin/bash",
-		"-c",
-		fmt.Sprintf("%v=%v %v -d %v -h %v -p %v",
-			postgresSuperUserPasswordEnvVar,
-			postgresSuperUserPassword,
-			entrypointScriptPath,
-			databaseName,
-			ipPlaceholder,
-			port),
 	}
 
-	return entrypointArgs, nil, nil
+	cmdArgs = []string{
+		"local",
+		"n",
+		fmt.Sprintf("--env-file=%v", mountedFileFilepaths[envFileKey]),
+		"-p",
+		fmt.Sprintf("%v", mountedFileFilepaths[passwordFileKey]),
+		"-a",
+		fmt.Sprintf("%v", mountedFileFilepaths[apiFileKey]),
+	}
+
+	return nil, cmdArgs, nil
 }
 
 
@@ -82,7 +107,7 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 
 func getOracleEnvFile(chainId string, contractAddress string, gethClientIp string,
 						gethClientWsPort string, postgresUsername string, postgresPassword string,
-						postgresServer string, postgresPort string, postgresDatabase string) string {
+						postgresIpAddress string, postgresPort string, postgresDatabase string) string {
 	return fmt.Sprintf(`ROOT=/chainlink
 LOG_LEVEL=debug
 ETH_CHAIN_ID=%v
@@ -95,7 +120,7 @@ ALLOW_ORIGINS=*
 ETH_URL=ws://%v:%v
 DATABASE_URL=postgresql://%v:%v@%v:%v/%v`, chainId, contractAddress,
 	gethClientIp, gethClientWsPort,
-	postgresUsername, postgresPassword, postgresServer, postgresPort, postgresDatabase)
+	postgresUsername, postgresPassword, postgresIpAddress, postgresPort, postgresDatabase)
 }
 
 func getOracleApiFile(username string, password string) string {

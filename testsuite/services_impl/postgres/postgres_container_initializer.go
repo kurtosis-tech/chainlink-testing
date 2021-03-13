@@ -8,11 +8,7 @@ import (
 )
 
 const (
-	databaseName = "postgres"
-	port = 5432
-
 	entrypointScriptPath = "/docker-entrypoint.sh"
-	postgresSuperUserPassword = "password"
 	postgresSuperUserPasswordEnvVar = "POSTGRES_PASSWORD"
 )
 
