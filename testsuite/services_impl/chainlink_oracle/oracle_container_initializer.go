@@ -12,14 +12,14 @@ import (
 
 const (
 	oracleEmail = "user@example.com"
-	oraclePassword = "qWeRtY123!@#"
-	oracleWalletPassword = "qWeRtY123!@#"
+	oraclePassword = "qWeRtY123!@#qWeRtY123!@#"
+	oracleWalletPassword = "qWeRtY123!@#qWeRtY123!@#"
 
 	passwordFileKey = "password-file"
 	apiFileKey = "api-file"
 	envFileKey = "env-file"
 
-	port = 6688
+	operatorUiPort = 6688
 )
 
 type ChainlinkOracleInitializer struct {
@@ -45,7 +45,7 @@ func (initializer ChainlinkOracleInitializer) GetDockerImage() string {
 
 func (initializer ChainlinkOracleInitializer) GetUsedPorts() map[string]bool {
 	return map[string]bool{
-		fmt.Sprintf("%v/tcp", port): true,
+		fmt.Sprintf("%v/tcp", operatorUiPort): true,
 	}
 }
 
