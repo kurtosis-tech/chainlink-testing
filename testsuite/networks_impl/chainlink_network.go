@@ -5,6 +5,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
 	"strconv"
 	"time"
@@ -14,6 +15,7 @@ const (
 	ethereumBootstrapperId services.ServiceID = "ethereum-bootstrapper"
 	gethServiceIdPrefix                       = "ethereum-node-"
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
+	postgresId services.ServiceID = "postgres"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 15
@@ -30,6 +32,7 @@ type ChainlinkNetwork struct {
 	linkContractDeployerImage string
 	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
 	postgresImage			  string
+	postgresService			  *postgres.PostgresService
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
@@ -98,6 +101,23 @@ func (network *ChainlinkNetwork) AddBootstrapper() error {
 	}
 	castedGethBootstrapperService := uncastedBootstrapper.(*geth.GethService)
 	network.gethBootsrapperService = castedGethBootstrapperService
+	return nil
+}
+
+func (network *ChainlinkNetwork) AddPostgres() error {
+	if network.postgresService != nil {
+		return stacktrace.NewError("Cannot add postgres service to network; postgres service already exists!")
+	}
+	initializer := postgres.NewPostgresContainerInitializer(network.postgresImage)
+	uncastedPostgres, checker, err := network.networkCtx.AddService(postgresId, initializer)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the postgres service")
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for the postgres service to start")
+	}
+	castedPostgres := uncastedPostgres.(*postgres.PostgresService)
+	network.postgresService = castedPostgres
 	return nil
 }
 
