@@ -146,7 +146,7 @@ SECURE_COOKIES=false
 GAS_UPDATER_ENABLED=true
 ALLOW_ORIGINS=*
 ETH_URL=ws://%v:%v
-DATABASE_URL=postgresql://%v:%v@%v:%v/%v`, chainId, contractAddress,
+DATABASE_URL=postgresql://%v:%v@%v:%v/%v?sslmode=disable`, chainId, contractAddress,
 	gethClientIp, gethClientWsPort,
 	postgresUsername, postgresPassword, postgresIpAddress, postgresPort, postgresDatabase)
 }
