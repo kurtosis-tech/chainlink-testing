@@ -6,6 +6,7 @@ require (
 	github.com/golang/protobuf v1.4.2
 	github.com/kurtosis-tech/kurtosis-libs v0.0.0-20210310201941-67fe1ba6e094 // indirect
 	github.com/kurtosis-tech/kurtosis-libs/golang v0.0.0-20210311034059-095c8ca80469 // indirect
+	github.com/lib/pq v1.10.0 // indirect
 	github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177
 	github.com/sirupsen/logrus v1.6.0
 	github.com/stretchr/testify v1.6.1
