@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
-	"github.com/sirupsen/logrus"
 
 	_ "github.com/lib/pq"
 )
