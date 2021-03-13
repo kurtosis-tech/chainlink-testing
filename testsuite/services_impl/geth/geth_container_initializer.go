@@ -10,12 +10,12 @@ import (
 
 const (
 	rpcPort       = 8545
+	wsPort 		  = 8546
 	discoveryPort = 30303
 
 	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
+	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
 	keystoreFilename = "keystore"
-	privateNetworkId = 9
-	testVolumeMountpoint = "/test-volume"
 	genesisJsonFilename = "genesis.json"
 	passwordFilename = "password.txt"
 	gasPrice = 1
@@ -30,6 +30,9 @@ const (
 	// This socket opening does not work on mounted filesystems, so runtime data directory needs to be off the mount.
 	// See: https://github.com/ethereum/go-ethereum/issues/16342
 	gethDataRuntimeDirpath = "/data"
+
+	PrivateNetworkId     = 9
+	TestVolumeMountpoint = "/test-volume"
 )
 
 type GethContainerInitializer struct {
@@ -55,6 +58,7 @@ func (initializer GethContainerInitializer) GetDockerImage() string {
 func (initializer GethContainerInitializer) GetUsedPorts() map[string]bool {
 	return map[string]bool{
 		fmt.Sprintf("%v/tcp", rpcPort):       true,
+		fmt.Sprintf("%v/tcp", wsPort):       true,
 		fmt.Sprintf("%v/udp", discoveryPort): true,
 		fmt.Sprintf("%v/tcp", discoveryPort): true,
 	}
@@ -94,7 +98,7 @@ func (initializer GethContainerInitializer) GetFilesArtifactMountpoints() map[se
 }
 
 func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
-	return testVolumeMountpoint
+	return TestVolumeMountpoint
 }
 
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
@@ -105,11 +109,13 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
 		gethDataRuntimeDirpath,
-		privateNetworkId)
+		PrivateNetworkId)
 	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v ",
 		httpExposedApisString,
 		ipPlaceholder,
 		ipPlaceholder)
+	// Chainlink oracles require websocket communication
+	entrypointCommand += fmt.Sprintf("--ws --ws.addr %v --ws.port %v --ws.api %v --ws.origins=\"*\" ", ipPlaceholder, wsPort, wsExposedApisString)
 	if initializer.isMiner {
 		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gastarget=%v ",
 			FirstAccountPublicKey, gasPrice, gasTarget)

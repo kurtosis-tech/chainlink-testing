@@ -20,20 +20,36 @@ const (
 type LinkContractInitializationTest struct {
 	gethServiceImage string
 	chainlinkContractDeployerImage string
+	chainlinkOracleImage string
+	postgresImage string
 	validatorIds []services.ServiceID
 }
 
-func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContractDeployerImage string) *LinkContractInitializationTest {
+func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContractDeployerImage string,
+	chainlinkOracleImage string, postgresImage string) *LinkContractInitializationTest {
 	return &LinkContractInitializationTest{
 		gethServiceImage: gethServiceImage,
 		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
+		chainlinkOracleImage: chainlinkOracleImage,
+		postgresImage: postgresImage,
 		validatorIds: []services.ServiceID{},
 	}
 }
 
 func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkContext) (networks.Network, error) {
-	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx, gethDataDirArtifactId, test.gethServiceImage, test.chainlinkContractDeployerImage)
-	err := chainlinkNetwork.AddBootstrapper()
+	chainlinkNetwork := networks_impl.NewChainlinkNetwork(networkCtx,
+		gethDataDirArtifactId,
+		test.gethServiceImage,
+		test.chainlinkContractDeployerImage,
+		test.postgresImage,
+		test.chainlinkOracleImage)
+
+	err := chainlinkNetwork.AddPostgres()
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Error adding postgres to the network.")
+	}
+
+	err = chainlinkNetwork.AddBootstrapper()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
 	}
@@ -46,6 +62,7 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		logrus.Infof("Added a geth service with id: %v", serviceId)
 		test.validatorIds = append(test.validatorIds, serviceId)
 	}
+
 	return chainlinkNetwork, nil
 }
 
@@ -88,6 +105,15 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to fund a $LINK wallet on the network."))
 	}
+
+	logrus.Infof("Starting a Chainlink Oracle node, using $LINK contract deployed at %v", chainlinkNetwork.GetLinkContractAddress())
+	err = chainlinkNetwork.AddOracleService()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "Error adding chainlink oracle to the network."))
+	}
+	logrus.Infof("Chainlink Oracle started and responsive on: %v:%v",
+		chainlinkNetwork.GetChainlinkOracle().GetIPAddress(),
+		chainlinkNetwork.GetChainlinkOracle().GetOperatorPort())
 
 }
 

@@ -5,7 +5,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
-	"os"
+	"strings"
 )
 
 const (
@@ -14,8 +14,13 @@ const (
 	defaultTruffleConfigHost = "127.0.0.1"
 	devNetworkId = "cldev"
 
+	contractAddressSplitter = "contract address:"
+	addressContentSplitter = "\n"
+	linkTokenContractSplitter = "Deploying 'LinkToken'\n"
+	oracleContractSplitter = "Deploying 'Oracle'\n"
+
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
-	testVolumeMountpoint = "/test-volume"
+	testVolumeMountpoint = geth.TestVolumeMountpoint
 )
 
 type ChainlinkContractDeployerService struct {
@@ -31,13 +36,12 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationIPAddress(no
 	overwriteMigrationIPAddressCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("sed -ie \"s/host:\\ '%v'/host:\\ '%v'/g\" %v >> %v",
+		fmt.Sprintf("sed -ie \"s/host:\\ '%v'/host:\\ '%v'/g\" %v",
 			defaultTruffleConfigHost,
 			nodeIpAddress,
-			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename),
+			migrationConfigurationFileName),
 	}
-	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
+	errorCode, _, err := deployer.serviceCtx.ExecCommand(overwriteMigrationIPAddressCommand)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute command on contract deployer service.")
 	} else if errorCode != 0 {
@@ -50,15 +54,12 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 	overwriteMigrationPortCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v >> %v && cat %v >> %v",
+		fmt.Sprintf("sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v",
 			port,
 			geth.FirstAccountPublicKey,
-			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename,
-			migrationConfigurationFileName,
-			testVolumeMountpoint + "/" + execLogFilename,),
+			migrationConfigurationFileName,),
 	}
-	errorCode, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
+	errorCode, _, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute command on contract deployer service.")
 	} else if errorCode != 0 {
@@ -67,43 +68,46 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 	return nil
 }
 
-func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) error {
+func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) (string, error) {
 	err := deployer.overwriteMigrationIPAddress(gethServiceIpAddress)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
+		return "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 	err = deployer.overwriteMigrationPort(gethServicePort)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
+		return "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 
 	migrateCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("yarn migrate:dev >> %v",
-			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
+		fmt.Sprintf("yarn migrate:dev",),
 	}
-	errorCode, err := deployer.serviceCtx.ExecCommand(migrateCommand)
+	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(migrateCommand)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
+		return "", stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
 	} else if errorCode != 0 {
-		return stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
+		return "", stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
+	}
+	logOutputStr := string(*logOutput)
+	address, err := parseContractAddressFromTruffleMigrate(logOutputStr)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "Failed to parse contract address.")
 	}
 	deployer.isContractDeployed = true
-	return nil
+	return address, nil
 }
 
 func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error {
 	fundLinkWalletCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("npx truffle exec scripts/fund-contract.js --network %v >> %v",
-			devNetworkId,
-			testVolumeMountpoint + string(os.PathSeparator) + execLogFilename),
+		fmt.Sprintf("npx truffle exec scripts/fund-contract.js --network %v",
+			devNetworkId,),
 	}
 	// We don't check the error code here because the fund-contract script from Chainlink
 	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
-	_, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
+	_, _, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
 	}
@@ -116,4 +120,42 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 
 func (deployer ChainlinkContractDeployerService) IsAvailable() bool {
 	return true
+}
+
+// ===========================================================================================
+//                              Helper functions
+// ===========================================================================================
+
+func parseContractAddressFromTruffleMigrate(logOutputStr string) (string, error) {
+	splitOnLinkTokenContract := strings.Split(logOutputStr, linkTokenContractSplitter)
+	splitCount := len(splitOnLinkTokenContract)
+	if splitCount != 2 {
+		return "", stacktrace.NewError("Expected truffle migrate command output to split into two on %+v, instead split into %v",
+			linkTokenContractSplitter,
+			splitCount)
+	}
+	splitOnOracleContract := strings.Split(splitOnLinkTokenContract[1], oracleContractSplitter)
+	splitCount = len(splitOnOracleContract)
+	if splitCount != 2 {
+		return "", stacktrace.NewError("Expected link token contract suffix to split into two on %v, instead split into %v",
+			oracleContractSplitter,
+			splitCount)
+	}
+	linkTokenContractInfo := splitOnOracleContract[0]
+	splitOnContractAddress := strings.Split(linkTokenContractInfo, contractAddressSplitter)
+	splitCount = len(splitOnContractAddress)
+	if splitCount != 2 {
+		return "", stacktrace.NewError("Expected link token contract info to split into two on %v, instead split into %v",
+			contractAddressSplitter,
+			splitCount)
+	}
+	splitOnAddressContent := strings.Split(strings.TrimSpace(splitOnContractAddress[1]), addressContentSplitter)
+	splitCount = len(splitOnAddressContent)
+	if splitCount < 2 {
+		return "", stacktrace.NewError("Expected address content to split into at least two on %v, instead split into %v",
+			addressContentSplitter,
+			splitCount)
+	}
+	address := splitOnAddressContent[0]
+	return strings.TrimSpace(address), nil
 }
