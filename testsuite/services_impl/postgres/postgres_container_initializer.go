@@ -59,9 +59,7 @@ func (initializer PostgresContainerInitializer) GetTestVolumeMountpoint() string
 
 func (initializer PostgresContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	entrypointArgs = []string{
-		"/bin/sh",
-		"-c",
-		fmt.Sprintf("%v=%v && %v",
+		fmt.Sprintf("%v=%v %v",
 			postgresSuperUserPasswordEnvVar,
 			postgresSuperUserPassword,
 			entrypointScriptPath,),
