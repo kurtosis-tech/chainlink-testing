@@ -4,6 +4,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_oracle"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
@@ -16,6 +17,7 @@ const (
 	gethServiceIdPrefix                       = "ethereum-node-"
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 	postgresId services.ServiceID = "postgres"
+	chainlinkOracleId services.ServiceID = "chainlink-oracle"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 15
@@ -32,11 +34,13 @@ type ChainlinkNetwork struct {
 	linkContractDeployerImage string
 	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
 	postgresImage			  string
-	postgresService			  *postgres.PostgresService
+	postgresService  		  *postgres.PostgresService
+	chainlinkOracleImage	  string
+	chainlinkOracleService	  *chainlink_oracle.ChainlinkOracleService
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
-	gethServiceImage string, linkContractDeployerImage string, postgresImage string) *ChainlinkNetwork {
+	gethServiceImage string, linkContractDeployerImage string, postgresImage string, chainlinkOracleImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
 		networkCtx:                networkCtx,
 		gethDataDirArtifactId:     gethDataDirArtifactId,
@@ -46,7 +50,8 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		nextGethServiceId:         0,
 		linkTokenAddress:          "",
 		linkContractDeployerImage: linkContractDeployerImage,
-		postgresImage: postgresImage,
+		postgresImage: 			   postgresImage,
+		chainlinkOracleImage:	   chainlinkOracleImage,
 	}
 }
 
@@ -118,6 +123,27 @@ func (network *ChainlinkNetwork) AddPostgres() error {
 	}
 	castedPostgres := uncastedPostgres.(*postgres.PostgresService)
 	network.postgresService = castedPostgres
+	return nil
+}
+
+func (network *ChainlinkNetwork) AddOracleService() error {
+	if network.linkTokenAddress == "" {
+		return stacktrace.NewError("Tried to add an oracle service, but the $LINK token contract has not yet been deployed.")
+	}
+	if network.chainlinkOracleService != nil {
+		return stacktrace.NewError("Tried to add an oracle service, but one has already been added!")
+	}
+	initializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(network.chainlinkOracleImage,
+		network.linkTokenAddress, network.gethBootsrapperService, network.postgresService)
+	uncastedChainlinkOracle, checker, err := network.networkCtx.AddService(chainlinkOracleId, initializer)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the Chainlink Oracle service.")
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for an Oracle service to start up.")
+	}
+	castedChainlinkOracle := uncastedChainlinkOracle.(*chainlink_oracle.ChainlinkOracleService)
+	network.chainlinkOracleService = castedChainlinkOracle
 	return nil
 }
 

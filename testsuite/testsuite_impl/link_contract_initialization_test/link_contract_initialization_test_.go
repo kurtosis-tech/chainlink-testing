@@ -41,7 +41,8 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		gethDataDirArtifactId,
 		test.gethServiceImage,
 		test.chainlinkContractDeployerImage,
-		test.postgresImage,)
+		test.postgresImage,
+		test.chainlinkOracleImage)
 
 	err := chainlinkNetwork.AddPostgres()
 	if err != nil {
@@ -60,6 +61,11 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		}
 		logrus.Infof("Added a geth service with id: %v", serviceId)
 		test.validatorIds = append(test.validatorIds, serviceId)
+	}
+
+	err = chainlinkNetwork.AddOracleService()
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Error adding chainlink oracle to the network.")
 	}
 	return chainlinkNetwork, nil
 }
