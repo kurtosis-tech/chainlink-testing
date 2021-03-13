@@ -9,6 +9,10 @@ import (
 
 const (
 	port = 5432
+
+	entrypointScriptPath = "/docker-entrypoint.sh"
+	postgresSuperUserPassword = "password"
+	postgresSuperUserPasswordEnvVar = "POSTGRES_PASSWORD"
 )
 
 type PostgresContainerInitializer struct {
@@ -54,12 +58,21 @@ func (initializer PostgresContainerInitializer) GetTestVolumeMountpoint() string
 }
 
 func (initializer PostgresContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+	entrypointArgs = []string{
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("%v=%v && %v",
+			postgresSuperUserPasswordEnvVar,
+			postgresSuperUserPassword,
+			entrypointScriptPath,),
+	}
+
 	cmdArgs = []string{
 		"-h",
 		"*",
 		"-p",
 		fmt.Sprintf("%v", port),
 	}
-	return nil, cmdArgs, nil
+	return entrypointArgs, cmdArgs, nil
 }
 

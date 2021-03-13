@@ -42,7 +42,11 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		test.gethServiceImage,
 		test.chainlinkContractDeployerImage,
 		test.postgresImage,)
-	err := chainlinkNetwork.AddBootstrapper()
+
+	err := chainlinkNetwork.AddPostgres()
+	time.Sleep(10000 * time.Second)
+
+	err = chainlinkNetwork.AddBootstrapper()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
 	}
