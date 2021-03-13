@@ -5,7 +5,6 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/data"
 	"github.com/palantir/stacktrace"
-	"github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -130,8 +129,6 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		}
 		entrypointCommand += fmt.Sprintf("--bootnodes %v", bootnodeEnodeRecord)
 	}
-
-	logrus.Infof("Entrypoint command: %v", entrypointCommand)
 
 	entrypointArgs = []string{
 		"/bin/sh",

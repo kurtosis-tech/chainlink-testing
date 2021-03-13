@@ -6,7 +6,6 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
-	"github.com/sirupsen/logrus"
 	"os"
 )
 
@@ -72,9 +71,6 @@ func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFi
 		initializer.postgresService.GetDatabaseName())
 	passwordFileString := getOraclePasswordFile(oracleWalletPassword)
 	apiFileString := getOracleApiFile(oracleEmail, oraclePassword)
-	logrus.Infof("Env File: \n%v", envFileString)
-	logrus.Infof("Password File: \n%v", passwordFileString)
-	logrus.Infof("API File: \n%v", apiFileString)
 
 	envFileFp := mountedFiles[envFileKey]
 	_, err := envFileFp.WriteString(envFileString)

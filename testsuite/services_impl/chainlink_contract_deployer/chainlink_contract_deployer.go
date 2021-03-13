@@ -5,7 +5,6 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
-	"github.com/sirupsen/logrus"
 	"strings"
 )
 
@@ -95,7 +94,6 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Failed to parse contract address.")
 	}
-	logrus.Infof("LinkToken contract info: %v", address)
 	deployer.isContractDeployed = true
 	return address, nil
 }
@@ -109,8 +107,7 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 	}
 	// We don't check the error code here because the fund-contract script from Chainlink
 	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
-	_, logOutput, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
-	logrus.Infof("Log Output from %+v, %s", fundLinkWalletCommand, string(*logOutput))
+	_, _, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
 	}
