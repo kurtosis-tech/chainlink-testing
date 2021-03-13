@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"github.com/sirupsen/logrus"
+
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -28,8 +31,12 @@ func (postgresService PostgresService) IsAvailable() bool {
 	connStr := fmt.Sprintf("postgres://%v:%v@%v/%v?sslmode=disable", postgresSuperUser, postgresSuperUserPassword, ipAddress, databaseName)
 	db, err := sql.Open(postgresDriverName, connStr)
 	if err != nil {
+		logrus.Infof("Got an error polling postgres: %v", err.Error())
 		return false
 	}
 	err = db.Ping()
+	if err != nil {
+		logrus.Infof("Got an error pinging postgres: %v", err.Error())
+	}
 	return err != nil
 }
