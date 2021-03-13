@@ -111,7 +111,9 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Error adding chainlink oracle to the network."))
 	}
-	logrus.Infof("Chainlink Oracle started and responsive on %v:%v", chainlinkNetwork.)
+	logrus.Infof("Chainlink Oracle started and responsive on: %v:%v",
+		chainlinkNetwork.GetChainlinkOracle().GetIPAddress(),
+		chainlinkNetwork.GetChainlinkOracle().GetOperatorPort())
 
 }
 

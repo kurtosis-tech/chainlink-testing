@@ -19,13 +19,21 @@ func NewChainlinkOracleService(serviceCtx *services.ServiceContext) *ChainlinkOr
 	return &ChainlinkOracleService{serviceCtx: serviceCtx}
 }
 
+func (chainlinkOracleService ChainlinkOracleService) GetOperatorPort() int {
+	return operatorUiPort
+}
+
+func (chainlinkOracleService ChainlinkOracleService) GetIPAddress() string {
+	return chainlinkOracleService.serviceCtx.GetIPAddress()
+}
+
 // ===========================================================================================
 //                              Service interface methods
 // ===========================================================================================
 
 func (chainlinkOracleService ChainlinkOracleService) IsAvailable() bool {
 	conn, err := net.DialTimeout("tcp",
-		net.JoinHostPort(chainlinkOracleService.serviceCtx.GetIPAddress(), strconv.Itoa(operatorUiPort)), isAvailableDialTimeout)
+		net.JoinHostPort(chainlinkOracleService.GetIPAddress(), strconv.Itoa(operatorUiPort)), isAvailableDialTimeout)
 	if err != nil {
 		return false
 	}
