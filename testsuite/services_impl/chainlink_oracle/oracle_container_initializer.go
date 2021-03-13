@@ -5,6 +5,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
+	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"os"
 )
@@ -69,7 +70,27 @@ func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFi
 		initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
 		initializer.postgresService.GetIPAddress(), string(initializer.postgresService.GetPort()),
 		initializer.postgresService.GetDatabaseName())
+	passwordFileString := getOraclePasswordFile(oracleWalletPassword)
+	apiFileString := getOracleApiFile(oracleEmail, oraclePassword)
 	logrus.Infof("Env File: \n%v", envFileString)
+	logrus.Infof("Password File: \n%v", passwordFileString)
+	logrus.Infof("API File: \n%v", apiFileString)
+
+	envFileFp := mountedFiles[envFileKey]
+	_, err := envFileFp.WriteString(envFileString)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to generate environment file.")
+	}
+	passwordFileFp := mountedFiles[passwordFileKey]
+	_, err = passwordFileFp.WriteString(passwordFileString)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to generate password file.")
+	}
+	apiFileFp := mountedFiles[apiFileKey]
+	_, err = apiFileFp.WriteString(apiFileString)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to generate API file.")
+	}
 	return nil
 }
 
@@ -82,9 +103,6 @@ func (initializer ChainlinkOracleInitializer) GetTestVolumeMountpoint() string {
 }
 
 func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
-	entrypointArgs = []string{
-	}
-
 	cmdArgs = []string{
 		"local",
 		"n",
