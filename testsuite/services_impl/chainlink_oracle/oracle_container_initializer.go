@@ -106,7 +106,7 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 	entrypointArgs = []string{
 		"/bin/bash",
 		"-c",
-		fmt.Sprintf("source %v && chainlink local n -p %v -a %v",
+		fmt.Sprintf("export $(cat %v | xargs)&& chainlink local n -p %v -a %v",
 			fmt.Sprintf(mountedFileFilepaths[envFileKey]),
 			fmt.Sprintf(mountedFileFilepaths[passwordFileKey]),
 			fmt.Sprintf(mountedFileFilepaths[apiFileKey]),
