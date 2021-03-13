@@ -151,6 +151,14 @@ func (network *ChainlinkNetwork) GetBootstrapper() *geth.GethService {
 	return network.gethBootsrapperService
 }
 
+func (network *ChainlinkNetwork) GetLinkContractAddress() string {
+	return network.linkTokenAddress
+}
+
+func (network *ChainlinkNetwork) GetChainlinkOracle() *chainlink_oracle.ChainlinkOracleService {
+	return network.chainlinkOracleService
+}
+
 func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {
 	if (network.gethBootsrapperService == nil) {
 		return "", stacktrace.NewError("Cannot add ethereum node to network; no bootstrap node exists")

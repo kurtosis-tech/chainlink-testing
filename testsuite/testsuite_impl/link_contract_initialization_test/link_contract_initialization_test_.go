@@ -106,10 +106,12 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to fund a $LINK wallet on the network."))
 	}
 
+	logrus.Infof("Starting a Chainlink Oracle node, using $LINK contract deployed at %v", chainlinkNetwork.GetLinkContractAddress())
 	err = chainlinkNetwork.AddOracleService()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Error adding chainlink oracle to the network."))
 	}
+	logrus.Infof("Chainlink Oracle started and responsive on %v:%v", chainlinkNetwork.)
 
 }
 
