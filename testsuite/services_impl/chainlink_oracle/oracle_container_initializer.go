@@ -103,17 +103,27 @@ func (initializer ChainlinkOracleInitializer) GetTestVolumeMountpoint() string {
 }
 
 func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
-	cmdArgs = []string{
+	entrypointArgs = []string{
+		"/bin/bash",
+		"-c",
+		fmt.Sprintf("source %v && chainlink local n -p %v -a %v",
+			fmt.Sprintf(mountedFileFilepaths[envFileKey]),
+			fmt.Sprintf(mountedFileFilepaths[passwordFileKey]),
+			fmt.Sprintf(mountedFileFilepaths[apiFileKey]),
+		),
+	}
+
+	/*cmdArgs = []string{
+		fmt.Sprintf("--env-file=%v", mountedFileFilepaths[envFileKey]),
 		"local",
 		"n",
-		fmt.Sprintf("--env-file=%v", mountedFileFilepaths[envFileKey]),
 		"-p",
 		fmt.Sprintf("%v", mountedFileFilepaths[passwordFileKey]),
 		"-a",
 		fmt.Sprintf("%v", mountedFileFilepaths[apiFileKey]),
-	}
+	}*/
 
-	return nil, cmdArgs, nil
+	return entrypointArgs, nil, nil
 }
 
 
