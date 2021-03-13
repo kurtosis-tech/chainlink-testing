@@ -12,8 +12,8 @@ import (
 
 const (
 	oracleEmail = "user@example.com"
-	oraclePassword = "password"
-	oracleWalletPassword = "walletPassword"
+	oraclePassword = "qWeRtY123!@#"
+	oracleWalletPassword = "qWeRtY123!@#"
 
 	passwordFileKey = "password-file"
 	apiFileKey = "api-file"

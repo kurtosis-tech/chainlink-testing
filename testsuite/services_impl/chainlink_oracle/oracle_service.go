@@ -2,6 +2,7 @@ package chainlink_oracle
 
 import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"time"
 )
 
 type ChainlinkOracleService struct {
@@ -17,6 +18,7 @@ func NewChainlinkOracleService(serviceCtx *services.ServiceContext) *ChainlinkOr
 // ===========================================================================================
 
 func (postgresService ChainlinkOracleService) IsAvailable() bool {
+	time.Sleep(300 * time.Second)
 	return true
 }
 
