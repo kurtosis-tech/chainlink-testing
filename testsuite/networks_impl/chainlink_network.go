@@ -20,7 +20,7 @@ const (
 	chainlinkOracleId services.ServiceID = "chainlink-oracle"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
-	waitForStartupMaxNumPolls = 15
+	waitForStartupMaxNumPolls = 30
 )
 
 type ChainlinkNetwork struct {

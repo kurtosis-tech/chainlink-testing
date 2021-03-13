@@ -55,12 +55,8 @@ func (postgresService PostgresService) IsAvailable() bool {
 	connStr := fmt.Sprintf("postgres://%v:%v@%v/%v?sslmode=disable", postgresSuperUsername, postgresSuperUserPassword, ipAddress, databaseName)
 	db, err := sql.Open(postgresDriverName, connStr)
 	if err != nil {
-		logrus.Infof("Got an error polling postgres: %v", err.Error())
 		return false
 	}
 	err = db.Ping()
-	if err != nil {
-		logrus.Infof("Got an error pinging postgres: %v", err.Error())
-	}
 	return err != nil
 }

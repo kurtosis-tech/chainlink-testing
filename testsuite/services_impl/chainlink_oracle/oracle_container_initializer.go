@@ -113,16 +113,6 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 		),
 	}
 
-	/*cmdArgs = []string{
-		fmt.Sprintf("--env-file=%v", mountedFileFilepaths[envFileKey]),
-		"local",
-		"n",
-		"-p",
-		fmt.Sprintf("%v", mountedFileFilepaths[passwordFileKey]),
-		"-a",
-		fmt.Sprintf("%v", mountedFileFilepaths[apiFileKey]),
-	}*/
-
 	return entrypointArgs, nil, nil
 }
 
