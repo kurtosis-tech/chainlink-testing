@@ -63,10 +63,6 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		test.validatorIds = append(test.validatorIds, serviceId)
 	}
 
-	err = chainlinkNetwork.AddOracleService()
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error adding chainlink oracle to the network.")
-	}
 	return chainlinkNetwork, nil
 }
 
@@ -108,6 +104,11 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	err = chainlinkNetwork.FundLinkWallet()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to fund a $LINK wallet on the network."))
+	}
+
+	err = chainlinkNetwork.AddOracleService()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "Error adding chainlink oracle to the network."))
 	}
 
 }
