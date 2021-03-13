@@ -65,10 +65,10 @@ func (initializer ChainlinkOracleInitializer) GetFilesToGenerate() map[string]bo
 
 func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {
 	envFileString := getOracleEnvFile(
-		string(geth.PrivateNetworkId), initializer.linkContractAddress,
-		initializer.gethClient.GetIPAddress(), string(initializer.gethClient.GetWsPort()),
+		geth.PrivateNetworkId, initializer.linkContractAddress,
+		initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort(),
 		initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
-		initializer.postgresService.GetIPAddress(), string(initializer.postgresService.GetPort()),
+		initializer.postgresService.GetIPAddress(), initializer.postgresService.GetPort(),
 		initializer.postgresService.GetDatabaseName())
 	passwordFileString := getOraclePasswordFile(oracleWalletPassword)
 	apiFileString := getOracleApiFile(oracleEmail, oraclePassword)
@@ -123,9 +123,9 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 //								Helper methods
 // ==========================================================================================
 
-func getOracleEnvFile(chainId string, contractAddress string, gethClientIp string,
-						gethClientWsPort string, postgresUsername string, postgresPassword string,
-						postgresIpAddress string, postgresPort string, postgresDatabase string) string {
+func getOracleEnvFile(chainId int, contractAddress string, gethClientIp string,
+						gethClientWsPort int, postgresUsername string, postgresPassword string,
+						postgresIpAddress string, postgresPort int, postgresDatabase string) string {
 	return fmt.Sprintf(`ROOT=/chainlink
 LOG_LEVEL=debug
 ETH_CHAIN_ID=%v
