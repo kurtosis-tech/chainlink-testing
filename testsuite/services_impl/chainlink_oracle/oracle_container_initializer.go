@@ -50,10 +50,8 @@ func (initializer ChainlinkOracleInitializer) GetUsedPorts() map[string]bool {
 	}
 }
 
-func (initializer ChainlinkOracleInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
-	return func(ctx *services.ServiceContext) services.Service {
-		return NewChainlinkOracleService(ctx);
-	};
+func (initializer ChainlinkOracleInitializer) GetService(ctx *services.ServiceContext) services.Service {
+	return NewChainlinkOracleService(ctx);
 }
 
 func (initializer ChainlinkOracleInitializer) GetFilesToGenerate() map[string]bool {

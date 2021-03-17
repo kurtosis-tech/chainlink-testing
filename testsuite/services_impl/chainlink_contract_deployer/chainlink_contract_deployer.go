@@ -130,44 +130,6 @@ func (deployer ChainlinkContractDeployerService) IsAvailable() bool {
 //                              Helper functions
 // ===========================================================================================
 
-func parseLinkContractAddressFromTruffleMigrate(logOutputStr string) (string, error) {
-	splitOnLinkTokenContract := strings.Split(logOutputStr, linkTokenContractSplitter)
-	splitCount := len(splitOnLinkTokenContract)
-	if splitCount != 2 {
-		return "", stacktrace.NewError("Expected truffle migrate command output to split into two on %+v, instead split into %v",
-			linkTokenContractSplitter,
-			splitCount)
-	}
-	splitOnOracleContract := strings.Split(splitOnLinkTokenContract[1], oracleContractSplitter)
-	splitCount = len(splitOnOracleContract)
-	if splitCount != 2 {
-		return "", stacktrace.NewError("Expected link token contract suffix to split into two on %v, instead split into %v",
-			oracleContractSplitter,
-			splitCount)
-	}
-	linkTokenContractInfo := splitOnOracleContract[0]
-	splitOnContractAddress := strings.Split(linkTokenContractInfo, contractAddressSplitter)
-	splitCount = len(splitOnContractAddress)
-	if splitCount != 2 {
-		return "", stacktrace.NewError("Expected link token contract info to split into two on %v, instead split into %v",
-			contractAddressSplitter,
-			splitCount)
-	}
-	splitOnAddressContent := strings.Split(strings.TrimSpace(splitOnContractAddress[1]), addressContentSplitter)
-	splitCount = len(splitOnAddressContent)
-	if splitCount < 2 {
-		return "", stacktrace.NewError("Expected address content to split into at least two on %v, instead split into %v",
-			addressContentSplitter,
-			splitCount)
-	}
-	address := splitOnAddressContent[0]
-	return strings.TrimSpace(address), nil
-}
-
-func parseOracleContractAddressFromTruffleMigrate(logOutputStr string) (string, error) {
-	return "", nil
-}
-
 func parseContractAddressFromTruffleMigrate(logOutputStr string, contractSplitter string, nextContractSplitter string) (string, error) {
 	splitOnContract := strings.Split(logOutputStr, contractSplitter)
 	splitCount := len(splitOnContract)

@@ -25,14 +25,11 @@ func (initializer ChainlinkContractDeployerInitializer) GetDockerImage() string 
 }
 
 func (initializer ChainlinkContractDeployerInitializer) GetUsedPorts() map[string]bool {
-	return map[string]bool{
-	}
+	return map[string]bool{}
 }
 
-func (initializer ChainlinkContractDeployerInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
-	return func(ctx *services.ServiceContext) services.Service {
-		return NewChainlinkContractDeployerService(ctx);
-	};
+func (initializer ChainlinkContractDeployerInitializer) GetService(ctx *services.ServiceContext) services.Service {
+	return NewChainlinkContractDeployerService(ctx);
 }
 
 func (initializer ChainlinkContractDeployerInitializer) GetFilesToGenerate() map[string]bool {

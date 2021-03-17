@@ -32,10 +32,8 @@ func (initializer PostgresContainerInitializer) GetUsedPorts() map[string]bool {
 	}
 }
 
-func (initializer PostgresContainerInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
-	return func(ctx *services.ServiceContext) services.Service {
-		return NewPostgresService(ctx);
-	};
+func (initializer PostgresContainerInitializer) GetService(ctx *services.ServiceContext) services.Service {
+	return NewPostgresService(ctx);
 }
 
 func (initializer PostgresContainerInitializer) GetFilesToGenerate() map[string]bool {

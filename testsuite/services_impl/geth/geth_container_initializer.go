@@ -64,10 +64,8 @@ func (initializer GethContainerInitializer) GetUsedPorts() map[string]bool {
 	}
 }
 
-func (initializer GethContainerInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
-	return func(ctx *services.ServiceContext) services.Service {
-		return NewGethService(ctx, rpcPort);
-	};
+func (initializer GethContainerInitializer) GetService(ctx *services.ServiceContext) services.Service {
+	return NewGethService(ctx, rpcPort);
 }
 
 func (initializer GethContainerInitializer) GetFilesToGenerate() map[string]bool {
