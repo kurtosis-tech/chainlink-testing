@@ -66,7 +66,7 @@ func (initializer ChainlinkOracleInitializer) GetFilesToGenerate() map[string]bo
 
 func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {
 	envFileString := getOracleEnvFile(
-		geth.PrivateNetworkId, initializer.linkContractAddress,
+		geth.PrivateNetworkId, initializer.linkContractAddress, initializer.oracleContractAddress,
 		initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort(),
 		initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
 		initializer.postgresService.GetIPAddress(), initializer.postgresService.GetPort(),
@@ -121,7 +121,7 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 //								Helper methods
 // ==========================================================================================
 
-func getOracleEnvFile(chainId int, contractAddress string, gethClientIp string,
+func getOracleEnvFile(chainId int, linkContractAddress string, operatorContractAddress string, gethClientIp string,
 						gethClientWsPort int, postgresUsername string, postgresPassword string,
 						postgresIpAddress string, postgresPort int, postgresDatabase string) string {
 	return fmt.Sprintf(`ROOT=/chainlink
@@ -129,13 +129,15 @@ LOG_LEVEL=debug
 ETH_CHAIN_ID=%v
 MIN_OUTGOING_CONFIRMATIONS=2
 LINK_CONTRACT_ADDRESS=%v
+OPERATOR_CONTRACT_ADDRESS=%v
+TRUFFLE_CL_BOX_ORACLE_ADDRESS=%v
 CHAINLINK_TLS_PORT=0
 SECURE_COOKIES=false
 GAS_UPDATER_ENABLED=true
 ALLOW_ORIGINS=*
 ETH_URL=ws://%v:%v
-DATABASE_URL=postgresql://%v:%v@%v:%v/%v?sslmode=disable`, chainId, contractAddress,
-	gethClientIp, gethClientWsPort,
+DATABASE_URL=postgresql://%v:%v@%v:%v/%v?sslmode=disable`, chainId, linkContractAddress,
+	operatorContractAddress, operatorContractAddress, gethClientIp, gethClientWsPort,
 	postgresUsername, postgresPassword, postgresIpAddress, postgresPort, postgresDatabase)
 }
 

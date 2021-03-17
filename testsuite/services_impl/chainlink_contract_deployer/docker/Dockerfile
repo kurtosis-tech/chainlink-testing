@@ -6,10 +6,12 @@ RUN apk update && \
     apk add bash && \
     apk add python
 
-RUN git clone "https://github.com/smartcontractkit/LinkToken.git"
 RUN npm install -g truffle
 RUN mkdir -p /chainlink
 WORKDIR /chainlink
+
+### Source: https://github.com/smartcontractkit/box
+### All of our smartcontract deployment and manipulation comes from this default truffle box.
 RUN truffle unbox smartcontractkit/box
 RUN yarn && yarn compile
 
