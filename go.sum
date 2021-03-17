@@ -41,6 +41,8 @@ github.com/kurtosis-tech/kurtosis-libs/golang v0.0.0-20210304054339-6976de3fa624
 github.com/kurtosis-tech/kurtosis-libs/golang v0.0.0-20210304054339-6976de3fa624/go.mod h1:8w28vTlAdvu22uFzcLI8DX8B83bQsAft4KC1MdSIj3Y=
 github.com/kurtosis-tech/kurtosis-libs/golang v0.0.0-20210311034059-095c8ca80469 h1:DcRjod7hnqpMTkQRMf+dN8H+aItbRQ+fArEe1K1GNGI=
 github.com/kurtosis-tech/kurtosis-libs/golang v0.0.0-20210311034059-095c8ca80469/go.mod h1:8w28vTlAdvu22uFzcLI8DX8B83bQsAft4KC1MdSIj3Y=
+github.com/kurtosis-tech/kurtosis-libs/golang v0.0.0-20210317205101-b3b58c3eafc3 h1:RQyU7I7KzVcS1AMg7vKgJ7CLlNxmQ20jJEl9Y1qU+Bk=
+github.com/kurtosis-tech/kurtosis-libs/golang v0.0.0-20210317205101-b3b58c3eafc3/go.mod h1:8w28vTlAdvu22uFzcLI8DX8B83bQsAft4KC1MdSIj3Y=
 github.com/lib/pq v1.10.0 h1:Zx5DJFEYQXio93kgXnQ09fXNiUKsqv4OUEu2UtGcB1E=
 github.com/lib/pq v1.10.0/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/palantir/stacktrace v0.0.0-20161112013806-78658fd2d177 h1:nRlQD0u1871kaznCnn1EvYiMbum36v7hw1DLPEjds4o=
