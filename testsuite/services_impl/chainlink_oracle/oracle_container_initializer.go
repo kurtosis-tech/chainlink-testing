@@ -64,23 +64,32 @@ func (initializer ChainlinkOracleInitializer) GetFilesToGenerate() map[string]bo
 	}
 }
 
+func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() map[string]string {
+	return map[string]string {
+		"ROOT": "/chainlink",
+		"LOG_LEVEL": "debug",
+		"ETH_CHAIN_ID": string(geth.PrivateNetworkId),
+		"MIN_OUTGOING_CONFIRMATIONS": "2",
+		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress,
+		"OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress,
+		"TRUFFLE_CL_BOX_ORACLE_ADDRESS": initializer.oracleContractAddress,
+		"CHAINLINK_TLS_PORT": "0",
+		"SECURE_COOKIES": "false",
+		"GAS_UPDATER_ENABLED": "true",
+		"ALLOW_ORIGINS":"*",
+		"ETH_URL": fmt.Sprintf("ws://%v:%v", initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort()),
+		"DATABASE_URL": fmt.Sprintf("postgresql://%v:%v@%v:%v/%v?sslmode=disable",
+			initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
+			initializer.postgresService.GetIPAddress(), initializer.postgresService.GetPort(), initializer.postgresService.GetDatabaseName()),
+	}
+}
+
 func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {
-	envFileString := getOracleEnvFile(
-		geth.PrivateNetworkId, initializer.linkContractAddress, initializer.oracleContractAddress,
-		initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort(),
-		initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
-		initializer.postgresService.GetIPAddress(), initializer.postgresService.GetPort(),
-		initializer.postgresService.GetDatabaseName())
 	passwordFileString := getOraclePasswordFile(oracleWalletPassword)
 	apiFileString := getOracleApiFile(oracleEmail, oraclePassword)
 
-	envFileFp := mountedFiles[envFileKey]
-	_, err := envFileFp.WriteString(envFileString)
-	if err != nil {
-		return stacktrace.Propagate(err, "Failed to generate environment file.")
-	}
 	passwordFileFp := mountedFiles[passwordFileKey]
-	_, err = passwordFileFp.WriteString(passwordFileString)
+	_, err := passwordFileFp.WriteString(passwordFileString)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to generate password file.")
 	}
@@ -104,8 +113,7 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 	entrypointArgs = []string{
 		"/bin/bash",
 		"-c",
-		fmt.Sprintf("export $(cat %v | xargs)&& chainlink local n -p %v -a %v",
-			fmt.Sprintf(mountedFileFilepaths[envFileKey]),
+		fmt.Sprintf("chainlink local n -p %v -a %v",
 			fmt.Sprintf(mountedFileFilepaths[passwordFileKey]),
 			fmt.Sprintf(mountedFileFilepaths[apiFileKey]),
 		),
@@ -120,26 +128,6 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 // ==========================================================================================
 //								Helper methods
 // ==========================================================================================
-
-func getOracleEnvFile(chainId int, linkContractAddress string, operatorContractAddress string, gethClientIp string,
-						gethClientWsPort int, postgresUsername string, postgresPassword string,
-						postgresIpAddress string, postgresPort int, postgresDatabase string) string {
-	return fmt.Sprintf(`ROOT=/chainlink
-LOG_LEVEL=debug
-ETH_CHAIN_ID=%v
-MIN_OUTGOING_CONFIRMATIONS=2
-LINK_CONTRACT_ADDRESS=%v
-OPERATOR_CONTRACT_ADDRESS=%v
-TRUFFLE_CL_BOX_ORACLE_ADDRESS=%v
-CHAINLINK_TLS_PORT=0
-SECURE_COOKIES=false
-GAS_UPDATER_ENABLED=true
-ALLOW_ORIGINS=*
-ETH_URL=ws://%v:%v
-DATABASE_URL=postgresql://%v:%v@%v:%v/%v?sslmode=disable`, chainId, linkContractAddress,
-	operatorContractAddress, operatorContractAddress, gethClientIp, gethClientWsPort,
-	postgresUsername, postgresPassword, postgresIpAddress, postgresPort, postgresDatabase)
-}
 
 func getOracleApiFile(username string, password string) string {
 	return fmt.Sprintf(`%v
