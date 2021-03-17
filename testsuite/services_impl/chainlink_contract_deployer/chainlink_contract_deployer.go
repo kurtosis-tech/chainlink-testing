@@ -90,7 +90,7 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 		return "", stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}
 	logOutputStr := string(*logOutput)
-	address, err := parseContractAddressFromTruffleMigrate(logOutputStr)
+	address, err := parseLinkContractAddressFromTruffleMigrate(logOutputStr)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Failed to parse contract address.")
 	}
@@ -126,7 +126,7 @@ func (deployer ChainlinkContractDeployerService) IsAvailable() bool {
 //                              Helper functions
 // ===========================================================================================
 
-func parseContractAddressFromTruffleMigrate(logOutputStr string) (string, error) {
+func parseLinkContractAddressFromTruffleMigrate(logOutputStr string) (string, error) {
 	splitOnLinkTokenContract := strings.Split(logOutputStr, linkTokenContractSplitter)
 	splitCount := len(splitOnLinkTokenContract)
 	if splitCount != 2 {
@@ -158,4 +158,8 @@ func parseContractAddressFromTruffleMigrate(logOutputStr string) (string, error)
 	}
 	address := splitOnAddressContent[0]
 	return strings.TrimSpace(address), nil
+}
+
+func parseOracleContractAddressFromTruffleMigrate(logOutputStr string) (string, error) {
+	return "", nil
 }
