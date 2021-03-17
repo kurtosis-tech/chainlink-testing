@@ -24,15 +24,17 @@ const (
 type ChainlinkOracleInitializer struct {
 	dockerImage         string
 	linkContractAddress string
+	oracleContractAddress string
 	gethClient	*geth.GethService
 	postgresService	*postgres.PostgresService
 }
 
-func NewChainlinkOracleContainerInitializer(dockerImage string, linkContractAddress string,
+func NewChainlinkOracleContainerInitializer(dockerImage string, linkContractAddress string, oracleContractAddress string,
 	gethClient *geth.GethService, postgresService *postgres.PostgresService) *ChainlinkOracleInitializer {
 	return &ChainlinkOracleInitializer{
 		dockerImage:         dockerImage,
 		linkContractAddress: linkContractAddress,
+		oracleContractAddress: oracleContractAddress,
 		gethClient: gethClient,
 		postgresService: postgresService,
 	}

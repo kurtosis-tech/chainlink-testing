@@ -5,6 +5,7 @@ import (
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"strings"
 )
 
@@ -14,10 +15,11 @@ const (
 	defaultTruffleConfigHost = "127.0.0.1"
 	devNetworkId = "cldev"
 
-	contractAddressSplitter = "contract address:"
-	addressContentSplitter = "\n"
+	contractAddressSplitter   = "contract address:"
+	addressContentSplitter    = "\n"
 	linkTokenContractSplitter = "Deploying 'LinkToken'\n"
-	oracleContractSplitter = "Deploying 'Oracle'\n"
+	oracleContractSplitter      = "Deploying 'Oracle'\n"
+	myContractSplitter      = "Deploying 'MyContract'\n"
 
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
 	testVolumeMountpoint = geth.TestVolumeMountpoint
@@ -68,14 +70,14 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 	return nil
 }
 
-func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) (string, error) {
-	err := deployer.overwriteMigrationIPAddress(gethServiceIpAddress)
+func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAddress string, gethServicePort string) (linkAddress string, oracleAddress string, err error) {
+	err = deployer.overwriteMigrationIPAddress(gethServiceIpAddress)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
+		return "", "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 	err = deployer.overwriteMigrationPort(gethServicePort)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
+		return "", "", stacktrace.Propagate(err, "Failed to deploy $LINK contract.")
 	}
 
 	migrateCommand := []string{
@@ -85,17 +87,19 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 	}
 	errorCode, logOutput, err := deployer.serviceCtx.ExecCommand(migrateCommand)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
+		return "", "", stacktrace.Propagate(err, "Failed to execute yarn migration command on contract deployer service.")
 	} else if errorCode != 0 {
-		return "", stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
+		return "", "", stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}
 	logOutputStr := string(*logOutput)
-	address, err := parseLinkContractAddressFromTruffleMigrate(logOutputStr)
+	logrus.Infof("Log output from contract deploy: %+v", logOutputStr)
+	linkAddress, err = parseContractAddressFromTruffleMigrate(logOutputStr, linkTokenContractSplitter, oracleContractSplitter)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to parse contract address.")
+		return "", "", stacktrace.Propagate(err, "Failed to parse contract linkAddress.")
 	}
+	oracleAddress, err = parseContractAddressFromTruffleMigrate(logOutputStr, oracleContractSplitter, myContractSplitter)
 	deployer.isContractDeployed = true
-	return address, nil
+	return linkAddress, oracleAddress,nil
 }
 
 func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error {
@@ -162,4 +166,38 @@ func parseLinkContractAddressFromTruffleMigrate(logOutputStr string) (string, er
 
 func parseOracleContractAddressFromTruffleMigrate(logOutputStr string) (string, error) {
 	return "", nil
+}
+
+func parseContractAddressFromTruffleMigrate(logOutputStr string, contractSplitter string, nextContractSplitter string) (string, error) {
+	splitOnContract := strings.Split(logOutputStr, contractSplitter)
+	splitCount := len(splitOnContract)
+	if splitCount != 2 {
+		return "", stacktrace.NewError("Expected truffle migrate command output to split into two on %+v, instead split into %v",
+			contractSplitter,
+			splitCount)
+	}
+	splitOnNextContract := strings.Split(splitOnContract[1], nextContractSplitter)
+	splitCount = len(splitOnNextContract)
+	if splitCount != 2 {
+		return "", stacktrace.NewError("Expected link token contract suffix to split into two on %v, instead split into %v",
+			nextContractSplitter,
+			splitCount)
+	}
+	contractInfo := splitOnNextContract[0]
+	splitOnContractAddress := strings.Split(contractInfo, contractAddressSplitter)
+	splitCount = len(splitOnContractAddress)
+	if splitCount != 2 {
+		return "", stacktrace.NewError("Expected link token contract info to split into two on %v, instead split into %v",
+			contractAddressSplitter,
+			splitCount)
+	}
+	splitOnAddressContent := strings.Split(strings.TrimSpace(splitOnContractAddress[1]), addressContentSplitter)
+	splitCount = len(splitOnAddressContent)
+	if splitCount < 2 {
+		return "", stacktrace.NewError("Expected address content to split into at least two on %v, instead split into %v",
+			addressContentSplitter,
+			splitCount)
+	}
+	address := splitOnAddressContent[0]
+	return strings.TrimSpace(address), nil
 }

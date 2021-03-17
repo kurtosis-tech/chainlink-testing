@@ -24,19 +24,20 @@ const (
 )
 
 type ChainlinkNetwork struct {
-	networkCtx                *networks.NetworkContext
-	gethDataDirArtifactId     services.FilesArtifactID
-	gethServiceImage          string
-	gethBootsrapperService    *geth.GethService
-	gethServices              map[services.ServiceID]*geth.GethService
-	nextGethServiceId         int
-	linkTokenAddress		  string
-	linkContractDeployerImage string
+	networkCtx                  *networks.NetworkContext
+	gethDataDirArtifactId       services.FilesArtifactID
+	gethServiceImage            string
+	gethBootsrapperService      *geth.GethService
+	gethServices                map[services.ServiceID]*geth.GethService
+	nextGethServiceId           int
+	linkContractAddress         string
+	oracleContractAddress		string
+	linkContractDeployerImage   string
 	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
-	postgresImage			  string
-	postgresService  		  *postgres.PostgresService
-	chainlinkOracleImage	  string
-	chainlinkOracleService	  *chainlink_oracle.ChainlinkOracleService
+	postgresImage               string
+	postgresService             *postgres.PostgresService
+	chainlinkOracleImage        string
+	chainlinkOracleService      *chainlink_oracle.ChainlinkOracleService
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
@@ -48,10 +49,10 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		gethBootsrapperService:    nil,
 		gethServices:              map[services.ServiceID]*geth.GethService{},
 		nextGethServiceId:         0,
-		linkTokenAddress:          "",
+		linkContractAddress:       "",
 		linkContractDeployerImage: linkContractDeployerImage,
-		postgresImage: 			   postgresImage,
-		chainlinkOracleImage:	   chainlinkOracleImage,
+		postgresImage:             postgresImage,
+		chainlinkOracleImage:      chainlinkOracleImage,
 	}
 }
 
@@ -72,11 +73,12 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	castedContractDeployer := uncastedContractDeployer.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
 	network.linkContractDeployerService = castedContractDeployer
 
-	address, err := network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
+	linkContractAddress, oracleContractAddress, err := network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")
 	}
-	network.linkTokenAddress = address
+	network.linkContractAddress = linkContractAddress
+	network.oracleContractAddress = oracleContractAddress
 	return nil
 }
 
@@ -127,14 +129,17 @@ func (network *ChainlinkNetwork) AddPostgres() error {
 }
 
 func (network *ChainlinkNetwork) AddOracleService() error {
-	if network.linkTokenAddress == "" {
+	if network.linkContractAddress == "" {
 		return stacktrace.NewError("Tried to add an oracle service, but the $LINK token contract has not yet been deployed.")
+	}
+	if network.oracleContractAddress == "" {
+		return stacktrace.NewError("Tried to add an oracle service, but the Oracle contract has not yet been deployed.")
 	}
 	if network.chainlinkOracleService != nil {
 		return stacktrace.NewError("Tried to add an oracle service, but one has already been added!")
 	}
 	initializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(network.chainlinkOracleImage,
-		network.linkTokenAddress, network.gethBootsrapperService, network.postgresService)
+		network.linkContractAddress, network.oracleContractAddress, network.gethBootsrapperService, network.postgresService)
 	uncastedChainlinkOracle, checker, err := network.networkCtx.AddService(chainlinkOracleId, initializer)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred adding the Chainlink Oracle service.")
@@ -152,7 +157,7 @@ func (network *ChainlinkNetwork) GetBootstrapper() *geth.GethService {
 }
 
 func (network *ChainlinkNetwork) GetLinkContractAddress() string {
-	return network.linkTokenAddress
+	return network.linkContractAddress
 }
 
 func (network *ChainlinkNetwork) GetChainlinkOracle() *chainlink_oracle.ChainlinkOracleService {
