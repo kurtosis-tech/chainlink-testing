@@ -68,7 +68,7 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 	return map[string]string {
 		"ROOT": "/chainlink",
 		"LOG_LEVEL": "debug",
-		"ETH_CHAIN_ID": string(geth.PrivateNetworkId),
+		"ETH_CHAIN_ID": fmt.Sprintf("%v", geth.PrivateNetworkId),
 		"MIN_OUTGOING_CONFIRMATIONS": "2",
 		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress,
 		"OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress,
