@@ -64,7 +64,7 @@ func (initializer ChainlinkOracleInitializer) GetFilesToGenerate() map[string]bo
 	}
 }
 
-func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() map[string]string {
+func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
 	return map[string]string {
 		"ROOT": "/chainlink",
 		"LOG_LEVEL": "debug",
@@ -81,7 +81,7 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"DATABASE_URL": fmt.Sprintf("postgresql://%v:%v@%v:%v/%v?sslmode=disable",
 			initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
 			initializer.postgresService.GetIPAddress(), initializer.postgresService.GetPort(), initializer.postgresService.GetDatabaseName()),
-	}
+	}, nil
 }
 
 func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {

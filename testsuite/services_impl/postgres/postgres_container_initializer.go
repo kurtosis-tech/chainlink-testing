@@ -50,6 +50,10 @@ func (initializer PostgresContainerInitializer) GetFilesArtifactMountpoints() ma
 	return map[services.FilesArtifactID]string{}
 }
 
+func (initializer PostgresContainerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
 func (initializer PostgresContainerInitializer) GetTestVolumeMountpoint() string {
 	return geth.TestVolumeMountpoint
 }

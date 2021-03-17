@@ -101,6 +101,10 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 	return TestVolumeMountpoint
 }
 
+func (initializer GethContainerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	// This is a bootstrapper
 	// TODO TODO TODO fix tgz so that it doesn't contain the directory at the root

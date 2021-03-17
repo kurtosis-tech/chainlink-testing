@@ -51,6 +51,10 @@ func (initializer ChainlinkContractDeployerInitializer) GetTestVolumeMountpoint(
 	return testVolumeMountpoint
 }
 
+func (initializer ChainlinkContractDeployerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
 func (initializer ChainlinkContractDeployerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	entrypointArgs = []string{
 		"/bin/sh",
