@@ -118,7 +118,7 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 }
 
 func (deployer ChainlinkContractDeployerService) RunRequestDataScript(jobId string, ) error {
-
+	return nil
 }
 
 // ===========================================================================================

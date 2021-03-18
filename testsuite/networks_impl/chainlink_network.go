@@ -8,7 +8,6 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
-	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -89,11 +88,10 @@ func (network *ChainlinkNetwork) DeployOracleJob() error {
 		return stacktrace.NewError("Can not deploy Oracle job because Oracle contract has not yet been deployed.")
 	}
 	oracleService := network.GetChainlinkOracle()
-	statusCode, err := oracleService.StartSession()
+	_, err := oracleService.SetJobSpec(network.oracleContractAddress, priceFeedUrl)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to start session.")
+		return stacktrace.Propagate(err, "Failed to set job spec.")
 	}
-	logrus.Infof("Started a session, got status Code: %v", statusCode)
 	//oracleService.SetJobSpec(network.oracleContractAddress, priceFeedUrl)
 	return nil
 }
