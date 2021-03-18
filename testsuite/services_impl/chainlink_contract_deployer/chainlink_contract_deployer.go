@@ -11,7 +11,6 @@ import (
 
 const (
 	migrationConfigurationFileName = "truffle-config.js"
-	execLogFilename = "dockerExecLogs.log"
 	defaultTruffleConfigHost = "127.0.0.1"
 	devNetworkId = "cldev"
 
@@ -116,6 +115,10 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
 	}
 	return nil
+}
+
+func (deployer ChainlinkContractDeployerService) RunRequestDataScript(jobId string, ) error {
+
 }
 
 // ===========================================================================================

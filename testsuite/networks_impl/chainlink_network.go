@@ -8,6 +8,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -18,6 +19,7 @@ const (
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 	postgresId services.ServiceID = "postgres"
 	chainlinkOracleId services.ServiceID = "chainlink-oracle"
+	priceFeedUrl = "https://bitstamp.net/api/ticker/"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
@@ -79,6 +81,20 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	}
 	network.linkContractAddress = linkContractAddress
 	network.oracleContractAddress = oracleContractAddress
+	return nil
+}
+
+func (network *ChainlinkNetwork) DeployOracleJob() error {
+	if network.oracleContractAddress == "" {
+		return stacktrace.NewError("Can not deploy Oracle job because Oracle contract has not yet been deployed.")
+	}
+	oracleService := network.GetChainlinkOracle()
+	statusCode, err := oracleService.StartSession()
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to start session.")
+	}
+	logrus.Infof("Started a session, got status Code: %v", statusCode)
+	//oracleService.SetJobSpec(network.oracleContractAddress, priceFeedUrl)
 	return nil
 }
 

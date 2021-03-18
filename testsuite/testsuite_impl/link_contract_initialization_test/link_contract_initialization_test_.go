@@ -115,6 +115,11 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 		chainlinkNetwork.GetChainlinkOracle().GetIPAddress(),
 		chainlinkNetwork.GetChainlinkOracle().GetOperatorPort())
 
+	err = chainlinkNetwork.DeployOracleJob()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "Error deploying Oracle job."))
+	}
+
 }
 
 
