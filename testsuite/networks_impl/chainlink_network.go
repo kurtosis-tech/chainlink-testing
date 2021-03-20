@@ -8,6 +8,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -18,7 +19,6 @@ const (
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 	postgresId services.ServiceID = "postgres"
 	chainlinkOracleId services.ServiceID = "chainlink-oracle"
-	priceFeedUrl = "https://bitstamp.net/api/ticker/"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
@@ -39,6 +39,7 @@ type ChainlinkNetwork struct {
 	postgresService             *postgres.PostgresService
 	chainlinkOracleImage        string
 	chainlinkOracleService      *chainlink_oracle.ChainlinkOracleService
+	priceFeedJobId				string
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
@@ -88,11 +89,14 @@ func (network *ChainlinkNetwork) DeployOracleJob() error {
 		return stacktrace.NewError("Can not deploy Oracle job because Oracle contract has not yet been deployed.")
 	}
 	oracleService := network.GetChainlinkOracle()
-	_, err := oracleService.SetJobSpec(network.oracleContractAddress, priceFeedUrl)
+	jobId, err := oracleService.SetJobSpec(network.oracleContractAddress)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to set job spec.")
 	}
-	//oracleService.SetJobSpec(network.oracleContractAddress, priceFeedUrl)
+	network.priceFeedJobId = jobId
+	logrus.Infof("Information for running smart contract: Oracle Address: %v, JobId: %v",
+		network.oracleContractAddress,
+		network.priceFeedJobId)
 	return nil
 }
 

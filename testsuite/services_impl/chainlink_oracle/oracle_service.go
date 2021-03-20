@@ -2,12 +2,12 @@ package chainlink_oracle
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/publicsuffix"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -21,6 +21,14 @@ const (
 	sessionsEndpoint = "sessions"
 	specsEndpoint = "v2/specs"
 )
+
+type OracleJobInitiatedResponse struct {
+	Data OracleJobInitiatedData `json:"data"`
+}
+
+type OracleJobInitiatedData struct {
+	Id string `json:"id"`
+}
 
 type ChainlinkOracleService struct {
 	serviceCtx *services.ServiceContext
@@ -39,14 +47,14 @@ func (chainlinkOracleService *ChainlinkOracleService) GetIPAddress() string {
 	return chainlinkOracleService.serviceCtx.GetIPAddress()
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(oracleContractAddress string, externalUrl string) (string, error) {
+func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(oracleContractAddress string) (jobId string, err error) {
 	if chainlinkOracleService.sessionCookieJar == nil {
 		_, err := chainlinkOracleService.StartSession()
 		if err != nil {
 			return "", stacktrace.Propagate(err, "Failed to start session on Oracle.")
 		}
 	}
-	jobSpecJsonStr := generateJobSpec(oracleContractAddress, externalUrl)
+	jobSpecJsonStr := generateJobSpec(oracleContractAddress)
 	jsonByteArray := []byte(jobSpecJsonStr)
 	urlStr := fmt.Sprintf("http://%v:%v/%v",
 		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), specsEndpoint)
@@ -60,14 +68,14 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(oracleContractA
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the Oracle.")
 	}
+	response := new(OracleJobInitiatedResponse)
 	defer authResp.Body.Close()
-	bodyBytes, err := ioutil.ReadAll(authResp.Body)
+	err = json.NewDecoder(authResp.Body).Decode(response)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
 	}
-	bodyString := string(bodyBytes)
-	logrus.Infof("Response from Chainlink Oracle: %v", bodyString)
-	return authResp.Status, nil
+	logrus.Infof("Response from Chainlink Oracle: %+v", response)
+	return response.Data.Id, nil
 }
 
 func (chainlinkOracleService *ChainlinkOracleService) StartSession() (string, error) {
@@ -110,7 +118,7 @@ func (chainlinkOracleService *ChainlinkOracleService) IsAvailable() bool {
 	return true
 }
 
-func generateJobSpec(oracleContractAddress string, externalUrl string) string {
+func generateJobSpec(oracleContractAddress string) string {
 	return fmt.Sprintf(`{
 		  "initiators": [
 			{
@@ -119,24 +127,22 @@ func generateJobSpec(oracleContractAddress string, externalUrl string) string {
 			}
 		  ],
 		  "tasks": [
-			{
-			  "type": "HTTPGet",
-			  "confirmations": 0,
-			  "params": { "get": "%v" }
-			},
-			{
-			  "type": "JSONParse",
-			  "params": { "path": [ "last" ] }
-			},
-			{
-			  "type": "Multiply",
-			  "params": { "times": 100 }
-			},
-			{ "type": "EthUint256" },
-			{ "type": "EthTx" }
+				{
+				  "type": "httpget"
+				},
+				{
+				  "type": "jsonparse"
+				},
+				{
+				  "type": "multiply"
+				},
+				{
+				  "type": "ethuint256"
+				},
+				{
+				  "type": "ethtx"
+				}
 		  ],
-		  "startAt": "2020-02-09T15:13:03Z",
-		  "endAt": null,
-		  "minPayment": "1000000000000000000"
-		}`, oracleContractAddress, externalUrl)
+		  "minPayment": "100"
+		}`, oracleContractAddress)
 }

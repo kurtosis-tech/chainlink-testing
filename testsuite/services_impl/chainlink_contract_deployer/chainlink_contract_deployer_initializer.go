@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	sleepSeconds = 720
+	sleepSeconds = 7200
 )
 
 type ChainlinkContractDeployerInitializer struct {

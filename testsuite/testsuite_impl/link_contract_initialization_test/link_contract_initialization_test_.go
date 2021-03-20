@@ -119,6 +119,7 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Error deploying Oracle job."))
 	}
+	time.Sleep(7200 * time.Second)
 
 }
 
