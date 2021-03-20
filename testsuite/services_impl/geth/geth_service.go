@@ -102,13 +102,14 @@ func (service GethService) GetEnodeAddress() (string, error) {
 func (service GethService) SendTransaction(from string, to string, amount string) (error) {
 	cmdArgs := []string{
 		"/bin/sh",
+		"-c",
 		fmt.Sprintf("geth attach %v --exec 'eth.sendTransaction({from: \"%v\",to: \"%v\", value: \"%v\"})'", ipcPath, from, to, amount),
 	}
 	_, logOutput, err := service.serviceCtx.ExecCommand(cmdArgs)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute command to send eth.")
 	}
-	logrus.Infof("Logoutput from sendTransaction: %v", logOutput)
+	logrus.Infof("Logoutput from sendTransaction: %+v", string(*logOutput))
 	return nil
 }
 

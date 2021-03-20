@@ -22,6 +22,8 @@ const (
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
+
+	oracleEthPreFundingAmount = "10000000000000000"
 )
 
 type ChainlinkNetwork struct {
@@ -115,10 +117,24 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	if network.chainlinkOracleService == nil {
 		return stacktrace.NewError("Tried to fund Oracle eth accounts before deploying Oracle.")
 	}
-	err := network.gethBootsrapperService.SendTransaction(geth.FirstFundedAddress, geth.SecondFundedAddress, "1000")
+	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred sending eth between accounts.")
+		return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
 	}
+	for _, ethAccount := range(oracleEthAccounts) {
+		toAddress := ethAccount.Attributes.Address
+		err = network.gethBootsrapperService.SendTransaction(geth.FirstFundedAddress, toAddress, oracleEthPreFundingAmount)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred sending eth between accounts.")
+		}
+	}
+	// TODO TODO TODO Replace this with polling network for transaction finalization
+	time.Sleep(30 * time.Second)
+	oracleEthAccounts, err = network.chainlinkOracleService.GetEthAccounts()
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
+	}
+	logrus.Infof("Funded accounts: %+v", oracleEthAccounts)
 	return nil
 }
 

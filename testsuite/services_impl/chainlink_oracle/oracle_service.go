@@ -22,7 +22,23 @@ const (
 
 	sessionsEndpoint = "sessions"
 	specsEndpoint = "v2/specs"
+	ethAccountsEndpoint = "v2/keys/eth"
 )
+
+type OracleEthereumKeysResponse struct {
+	Data []OracleEthereumKey `json:"data"`
+}
+
+type OracleEthereumKey struct {
+	Type string `json:"type"`
+	Attributes EthereumKeyAttributes `json:"attributes"`
+}
+
+type EthereumKeyAttributes struct {
+	Address string `json:"address"`
+	EthBalance string `json:"ethBalance"`
+	LinkBalance string `json:"linkBalance"`
+}
 
 type OracleJobInitiatedResponse struct {
 	Data OracleJobInitiatedData `json:"data"`
@@ -47,6 +63,45 @@ func (chainlinkOracleService *ChainlinkOracleService) GetOperatorPort() int {
 
 func (chainlinkOracleService *ChainlinkOracleService) GetIPAddress() string {
 	return chainlinkOracleService.serviceCtx.GetIPAddress()
+}
+
+func (chainlinkOracleService *ChainlinkOracleService) GetEthAccounts() ([]OracleEthereumKey, error) {
+	if chainlinkOracleService.sessionCookieJar == nil {
+		_, err := chainlinkOracleService.StartSession()
+		if err != nil {
+			return nil, stacktrace.Propagate(err, "Failed to start session on Oracle.")
+		}
+	}
+	urlStr := fmt.Sprintf("http://%v:%v/%v",
+		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), ethAccountsEndpoint)
+	// Create new http client with predefined options
+	client := &http.Client{
+		Jar:     chainlinkOracleService.sessionCookieJar,
+		Timeout: time.Second * 60,
+	}
+	resp, err := client.Get(urlStr)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Failed to get ethereum account info from Oracle.")
+	}
+	response := new(OracleEthereumKeysResponse)
+
+	// For debugging
+	var teeBuf bytes.Buffer
+	tee := io.TeeReader(resp.Body, &teeBuf)
+	bodyBytes, err := ioutil.ReadAll(tee)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Error parsing oracle response into bytes.")
+	}
+	bodyString := string(bodyBytes)
+	logrus.Infof("Response for Oracle getEthAccounts call: %v", bodyString)
+
+
+	err = json.NewDecoder(&teeBuf).Decode(response)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
+	}
+	logrus.Infof("Response from Chainlink Oracle getEthAccounts: %+v", response)
+	return response.Data, nil
 }
 
 func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(oracleContractAddress string) (jobId string, err error) {

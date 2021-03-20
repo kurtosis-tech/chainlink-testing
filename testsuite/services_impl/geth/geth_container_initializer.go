@@ -13,8 +13,8 @@ const (
 	wsPort 		  = 8546
 	discoveryPort = 30303
 
-	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
-	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
+	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool,debug"
+	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool,debug"
 	keystoreFilename = "keystore"
 	genesisJsonFilename = "genesis.json"
 	passwordFilename = "password.txt"
