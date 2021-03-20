@@ -57,7 +57,7 @@ func (deployer *ChainlinkContractDeployerService) overwriteMigrationPort(port st
 		"-c",
 		fmt.Sprintf("sed -ie 's/port: 8545/port: %v, from: \"%v\"/g' %v",
 			port,
-			geth.FirstAccountPublicKey,
+			geth.FirstFundedAddress,
 			migrationConfigurationFileName,),
 	}
 	errorCode, _, err := deployer.serviceCtx.ExecCommand(overwriteMigrationPortCommand)
@@ -110,10 +110,12 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 	}
 	// We don't check the error code here because the fund-contract script from Chainlink
 	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
-	_, _, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
+	_, logOutput, err := deployer.serviceCtx.ExecCommand(fundLinkWalletCommand)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
 	}
+	logOutputStr := string(*logOutput)
+	logrus.Infof("Log output from funding wallet: %+v", logOutputStr)
 	return nil
 }
 

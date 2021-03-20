@@ -8,6 +8,8 @@ import (
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/publicsuffix"
+	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -64,13 +66,25 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(oracleContractA
 		Jar:     chainlinkOracleService.sessionCookieJar,
 		Timeout: time.Second * 60,
 	}
-	authResp, err := client.Post(urlStr, "application/json", bytes.NewBuffer(jsonByteArray))
+	resp, err := client.Post(urlStr, "application/json", bytes.NewBuffer(jsonByteArray))
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the Oracle.")
 	}
 	response := new(OracleJobInitiatedResponse)
-	defer authResp.Body.Close()
-	err = json.NewDecoder(authResp.Body).Decode(response)
+	defer resp.Body.Close()
+
+	// For debugging
+	var teeBuf bytes.Buffer
+	tee := io.TeeReader(resp.Body, &teeBuf)
+	bodyBytes, err := ioutil.ReadAll(tee)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "Error parsing oracle response into bytes.")
+	}
+	bodyString := string(bodyBytes)
+	logrus.Infof("Response for Oracle job spec call: %v", bodyString)
+
+
+	err = json.NewDecoder(&teeBuf).Decode(response)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
 	}
@@ -128,21 +142,20 @@ func generateJobSpec(oracleContractAddress string) string {
 		  ],
 		  "tasks": [
 				{
-				  "type": "httpget"
+				  "type": "HttpGet"
 				},
 				{
-				  "type": "jsonparse"
+				  "type": "JsonParse"
 				},
 				{
-				  "type": "multiply"
+				  "type": "Multiply"
 				},
 				{
-				  "type": "ethuint256"
+				  "type": "EthUint256"
 				},
 				{
-				  "type": "ethtx"
+				  "type": "EthTx"
 				}
-		  ],
-		  "minPayment": "100"
+		  ]
 		}`, oracleContractAddress)
 }

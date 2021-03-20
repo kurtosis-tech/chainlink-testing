@@ -111,6 +111,17 @@ func (network *ChainlinkNetwork) FundLinkWallet() error {
 	return nil
 }
 
+func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
+	if network.chainlinkOracleService == nil {
+		return stacktrace.NewError("Tried to fund Oracle eth accounts before deploying Oracle.")
+	}
+	err := network.gethBootsrapperService.SendTransaction(geth.FirstFundedAddress, geth.SecondFundedAddress, "1000")
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred sending eth between accounts.")
+	}
+	return nil
+}
+
 func (network *ChainlinkNetwork) AddBootstrapper() error {
 	if network.gethBootsrapperService != nil {
 		return stacktrace.NewError("Cannot add bootstrapper service to network; bootstrapper already exists!")
