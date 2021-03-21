@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"os"
-	"strconv"
 )
 
 const (
 	sleepSeconds = 7200
-	defaultLinkFunding = 1000000000000000000000
+	defaultLinkFunding = "1000000000000000000000"
 )
 
 type ChainlinkContractDeployerInitializer struct {
@@ -52,7 +51,7 @@ func (initializer ChainlinkContractDeployerInitializer) GetTestVolumeMountpoint(
 
 func (initializer ChainlinkContractDeployerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
 	return map[string]string{
-		"TRUFFLE_CL_BOX_PAYMENT": strconv.Itoa(defaultLinkFunding),
+		"TRUFFLE_CL_BOX_PAYMENT": defaultLinkFunding,
 	}, nil
 }
 
