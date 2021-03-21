@@ -113,7 +113,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
 		gethDataRuntimeDirpath,
 		PrivateNetworkId)
-	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v ",
+	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v --gcmode archive --syncmode full ",
 		httpExposedApisString,
 		ipPlaceholder,
 		ipPlaceholder)
