@@ -80,7 +80,6 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"ETH_GAS_BUMP_THRESHOLD": strconv.Itoa(gasPriceBumpThreshold),
 		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress,
 		"OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress,
-		"TRUFFLE_CL_BOX_ORACLE_ADDRESS": initializer.oracleContractAddress,
 		"CHAINLINK_TLS_PORT": "0",
 		"SECURE_COOKIES": "false",
 		"GAS_UPDATER_ENABLED": "true",
