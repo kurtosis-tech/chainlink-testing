@@ -119,7 +119,21 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 	return nil
 }
 
-func (deployer ChainlinkContractDeployerService) RunRequestDataScript(jobId string, ) error {
+func (deployer ChainlinkContractDeployerService) RunRequestDataScript(oracleContractAddress string, jobId string) error {
+	requestDataCommand := []string{
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("export TRUFFLE_CL_BOX_ORACLE_ADDRESS=%v && export TRUFFLE_CL_BOX_JOB_ID=%v && npx truffle exec scripts/request-data.js --network %v",
+			oracleContractAddress, jobId, devNetworkId),
+	}
+	// We don't check the error code here because the fund-contract script from Chainlink
+	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
+	_, logOutput, err := deployer.serviceCtx.ExecCommand(requestDataCommand)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to execute request data command on contract deployer service.")
+	}
+	logOutputStr := string(*logOutput)
+	logrus.Infof("Log output from requesting data: %+v", logOutputStr)
 	return nil
 }
 

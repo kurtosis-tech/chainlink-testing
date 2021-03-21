@@ -22,7 +22,8 @@ const (
 	gasUpdaterDelay = 1
 	gasPriceBumpThreshold = 2
 	gasPriceDefault = 1
-	minOutgoingConfirmations = 3
+	minOutgoingConfirmations = 12
+	minIncomingConfirmations = 0
 
 	operatorUiPort = 6688
 )
@@ -74,6 +75,7 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"LOG_LEVEL": "debug",
 		"ETH_CHAIN_ID": fmt.Sprintf("%v", geth.PrivateNetworkId),
 		"MIN_OUTGOING_CONFIRMATIONS": strconv.Itoa(minOutgoingConfirmations),
+		"MIN_INCOMING_CONFIRMATIONS": strconv.Itoa(minIncomingConfirmations),
 		"ETH_GAS_PRICE_DEFAULT": strconv.Itoa(gasPriceDefault),
 		"ETH_GAS_BUMP_THRESHOLD": strconv.Itoa(gasPriceBumpThreshold),
 		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress,

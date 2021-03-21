@@ -138,6 +138,11 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	return nil
 }
 
+func (network *ChainlinkNetwork) RequestData() error {
+	err := network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
+	return err
+}
+
 func (network *ChainlinkNetwork) AddBootstrapper() error {
 	if network.gethBootsrapperService != nil {
 		return stacktrace.NewError("Cannot add bootstrapper service to network; bootstrapper already exists!")
