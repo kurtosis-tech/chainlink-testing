@@ -7,8 +7,11 @@ RUN apk update && \
     apk add python
 
 RUN npm install -g truffle
+RUN npm install -g ethers
 RUN mkdir -p /chainlink
 WORKDIR /chainlink
+
+COPY . .
 
 ### Source: https://github.com/smartcontractkit/box
 ### All of our smartcontract deployment and manipulation comes from this default truffle box.

@@ -224,7 +224,7 @@ func generateJobSpec(oracleContractAddress string) string {
 				  "type": "Multiply"
 				},
 				{
-				  "type": "EthUint256"
+				  "type": "EthInt256"
 				},
 				{
 				  "type": "EthTx"
