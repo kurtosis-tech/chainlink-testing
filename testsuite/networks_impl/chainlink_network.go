@@ -103,7 +103,7 @@ func (network *ChainlinkNetwork) DeployOracleJob() error {
 		return stacktrace.Propagate(err, "Failed to set job spec.")
 	}
 	network.priceFeedJobId = jobId
-	logrus.Infof("Information for running smart contract: Oracle Address: %v, JobId: %v",
+	logrus.Debugf("Information for running smart contract: Oracle Address: %v, JobId: %v",
 		network.oracleContractAddress,
 		network.priceFeedJobId)
 	return nil

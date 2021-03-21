@@ -183,7 +183,7 @@ func (chainlinkOracleService *ChainlinkOracleService) StartSession() (string, er
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Encountered an error trying to authenticate with the oracle service..")
 	}
-	logrus.Infof("After starting sessions, cookies look like: %+v", jar)
+	logrus.Debugf("After starting sessions, cookies look like: %+v", jar)
 	chainlinkOracleService.clientWithSession = client
 	return authResp.Status, nil
 }
@@ -248,13 +248,13 @@ func parseAndLogResponse(resp *http.Response, targetStruct interface{}) error{
 		return stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
 	}
 	bodyString := string(bodyBytes)
-	logrus.Infof("Response from Oracle: %v", bodyString)
+	logrus.Debugf("Response from Oracle: %v", bodyString)
 
 
 	err = json.NewDecoder(&teeBuf).Decode(targetStruct)
 	if err != nil {
 		return stacktrace.Propagate(err, "Error parsing Oracle response into a struct.")
 	}
-	logrus.Infof("Response from Chainlink Oracle: %+v", targetStruct)
+	logrus.Debugf("Response from Chainlink Oracle: %+v", targetStruct)
 	return nil
 }

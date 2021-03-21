@@ -109,7 +109,7 @@ func (service GethService) SendTransaction(from string, to string, amount string
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to execute command to send eth.")
 	}
-	logrus.Infof("Logoutput from sendTransaction: %+v", string(*logOutput))
+	logrus.Debugf("Logoutput from sendTransaction: %+v", string(*logOutput))
 	return nil
 }
 

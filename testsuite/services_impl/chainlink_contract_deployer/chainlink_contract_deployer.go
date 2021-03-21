@@ -91,7 +91,7 @@ func (deployer *ChainlinkContractDeployerService) DeployContract(gethServiceIpAd
 		return "", "", stacktrace.NewError("Got a non-zero exit code executing yarn migration for contract deployment: %v", errorCode)
 	}
 	logOutputStr := string(*logOutput)
-	logrus.Infof("Log output from contract deploy: %+v", logOutputStr)
+	logrus.Debugf("Log output from contract deploy: %+v", logOutputStr)
 	linkAddress, err = parseContractAddressFromTruffleMigrate(logOutputStr, linkTokenContractSplitter, oracleContractSplitter)
 	if err != nil {
 		return "", "", stacktrace.Propagate(err, "Failed to parse contract linkAddress.")
@@ -115,7 +115,7 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 		return stacktrace.Propagate(err, "Failed to execute $LINK funding command on contract deployer service.")
 	}
 	logOutputStr := string(*logOutput)
-	logrus.Infof("Log output from funding wallet: %+v", logOutputStr)
+	logrus.Debugf("Log output from funding wallet: %+v", logOutputStr)
 	return nil
 }
 
@@ -133,7 +133,7 @@ func (deployer ChainlinkContractDeployerService) RunRequestDataScript(oracleCont
 		return stacktrace.Propagate(err, "Failed to execute request data command on contract deployer service.")
 	}
 	logOutputStr := string(*logOutput)
-	logrus.Infof("Log output from requesting data: %+v", logOutputStr)
+	logrus.Debugf("Log output from requesting data: %+v", logOutputStr)
 	return nil
 }
 

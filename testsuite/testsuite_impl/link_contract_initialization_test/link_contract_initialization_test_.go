@@ -115,21 +115,25 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 		chainlinkNetwork.GetChainlinkOracle().GetIPAddress(),
 		chainlinkNetwork.GetChainlinkOracle().GetOperatorPort())
 
-	err = chainlinkNetwork.DeployOracleJob()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error deploying Oracle job."))
-	}
-
+	logrus.Infof("Funding ethereum accounts owned by the Oracle so that it can fulfill requests.")
 	err = chainlinkNetwork.FundOracleEthAccounts()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Error funding Oracle accounts."))
 	}
 
+	logrus.Infof("Configuring and setting a JobSpec on the Oracle to access an example price feed.")
+	err = chainlinkNetwork.DeployOracleJob()
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "Error deploying Oracle job."))
+	}
+
+	logrus.Infof("Using on-chain smart contracts to trigger job from the Oracle smart contract.")
 	err = chainlinkNetwork.RequestData()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting data from Chainlink oracle."))
 	}
 
+	logrus.Infof("Oracle successfully ran job accessing a remote price feed URL.")
 }
 
 
