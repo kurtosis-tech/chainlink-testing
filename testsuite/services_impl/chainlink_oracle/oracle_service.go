@@ -50,7 +50,7 @@ type TaskRun struct {
 }
 
 type Initiator struct {
-	Id string `json:"id"`
+	Id int `json:"id"`
 	JobSpecId string `json:"jobSpecId"`
 }
 
