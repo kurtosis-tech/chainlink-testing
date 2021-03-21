@@ -7,6 +7,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
 	"os"
+	"strconv"
 )
 
 const (
@@ -17,6 +18,11 @@ const (
 	passwordFileKey = "password-file"
 	apiFileKey = "api-file"
 	envFileKey = "env-file"
+
+	gasUpdaterDelay = 1
+	gasPriceBumpThreshold = 2
+	gasPriceDefault = 1
+	minOutgoingConfirmations = 3
 
 	operatorUiPort = 6688
 )
@@ -67,13 +73,16 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"ROOT": "/chainlink",
 		"LOG_LEVEL": "debug",
 		"ETH_CHAIN_ID": fmt.Sprintf("%v", geth.PrivateNetworkId),
-		"MIN_OUTGOING_CONFIRMATIONS": "2",
+		"MIN_OUTGOING_CONFIRMATIONS": strconv.Itoa(minOutgoingConfirmations),
+		"ETH_GAS_PRICE_DEFAULT": strconv.Itoa(gasPriceDefault),
+		"ETH_GAS_BUMP_THRESHOLD": strconv.Itoa(gasPriceBumpThreshold),
 		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress,
 		"OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress,
 		"TRUFFLE_CL_BOX_ORACLE_ADDRESS": initializer.oracleContractAddress,
 		"CHAINLINK_TLS_PORT": "0",
 		"SECURE_COOKIES": "false",
 		"GAS_UPDATER_ENABLED": "true",
+		"GAS_UPDATER_BLOCK_DELAY": strconv.Itoa(gasUpdaterDelay),
 		"ALLOW_ORIGINS":"*",
 		"ETH_URL": fmt.Sprintf("ws://%v:%v", initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort()),
 		"DATABASE_URL": fmt.Sprintf("postgresql://%v:%v@%v:%v/%v?sslmode=disable",

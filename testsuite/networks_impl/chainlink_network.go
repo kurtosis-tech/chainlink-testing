@@ -23,7 +23,7 @@ const (
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
 
-	oracleEthPreFundingAmount = "10000000000000000"
+	oracleEthPreFundingAmount = "10000000000000000000"
 )
 
 type ChainlinkNetwork struct {
