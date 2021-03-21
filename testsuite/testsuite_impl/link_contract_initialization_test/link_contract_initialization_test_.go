@@ -129,14 +129,6 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting data from Chainlink oracle."))
 	}
-	time.Sleep(20 * time.Second)
-
-	runs, err := chainlinkNetwork.GetChainlinkOracle().GetRuns()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting runs from Chainlink oracle."))
-	}
-
-	logrus.Infof("Runs: %+v", runs)
 
 }
 
