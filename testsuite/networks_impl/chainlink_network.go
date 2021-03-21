@@ -16,12 +16,19 @@ import (
 const (
 	ethereumBootstrapperId services.ServiceID = "ethereum-bootstrapper"
 	gethServiceIdPrefix                       = "ethereum-node-"
+	jobCompletedStatus string				  = "completed"
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 	postgresId services.ServiceID = "postgres"
 	chainlinkOracleId services.ServiceID = "chainlink-oracle"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
+
+	waitForTransactionFinalizationTimeBetweenPolls = 1 * time.Second
+	waitForTransactionFinalizationPolls = 30
+
+	waitForJobCompletionTimeBetweenPolls = 1 * time.Second
+	waitForJobCompletionPolls = 30
 
 	oracleEthPreFundingAmount = "10000000000000000000"
 )
@@ -128,19 +135,65 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 			return stacktrace.Propagate(err, "An error occurred sending eth between accounts.")
 		}
 	}
-	// TODO TODO TODO Replace this with polling network for transaction finalization
-	time.Sleep(30 * time.Second)
-	oracleEthAccounts, err = network.chainlinkOracleService.GetEthAccounts()
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
+
+	/*
+		Poll for transaction finalization so that we know that the Oracle's ethereum accounts are funded.
+		See: https://docs.chain.link/docs/running-a-chainlink-node#start-the-chainlink-node, "you will
+		need to send some ETH to your node's address in order for it to fulfill requests".
+	 */
+	ethAccountsFunded := false
+	numPolls := 0
+	for !ethAccountsFunded && numPolls < waitForTransactionFinalizationPolls {
+		time.Sleep(waitForTransactionFinalizationTimeBetweenPolls)
+		oracleEthAccounts, err = network.chainlinkOracleService.GetEthAccounts()
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
+		}
+		numPolls += 1
+
+		// Eth Accounts are considered funded if every eth account the Oracle owns is funded (has balance != 0)
+		allAccountsFunded := true
+		for _, account := range(oracleEthAccounts) {
+			allAccountsFunded = allAccountsFunded && (account.Attributes.EthBalance != "0")
+		}
+		ethAccountsFunded = ethAccountsFunded || allAccountsFunded
 	}
-	logrus.Infof("Funded accounts: %+v", oracleEthAccounts)
 	return nil
 }
 
 func (network *ChainlinkNetwork) RequestData() error {
+	if network.chainlinkOracleService == nil {
+		return stacktrace.NewError("Tried to request data before deploying the oracle service.")
+	}
+	if network.oracleContractAddress == "" {
+		return stacktrace.NewError("Tried to request data before deploying the oracle contract.")
+	}
+	if network.linkContractDeployerService == nil {
+		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
+	}
+	// Request data from the Oracle smart contract, starting a job.
 	err := network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
-	return err
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
+	}
+	// Poll to see if the Oracle job has completed.
+	numPolls := 0
+	jobCompleted := false
+	for !jobCompleted && numPolls < waitForJobCompletionPolls {
+		time.Sleep(waitForJobCompletionTimeBetweenPolls)
+		runs, err := network.chainlinkOracleService.GetRuns()
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred getting runs data from the Oracle service.")
+		}
+		for _, run := range(runs) {
+			// If the Oracle has a completed run with the same jobId as the priceFeed, job is complete.
+			if run.Attributes.JobId == network.priceFeedJobId {
+				jobCompleted = jobCompleted || run.Attributes.Status == jobCompletedStatus
+			}
+		}
+		numPolls += 1
+	}
+	return nil
 }
 
 func (network *ChainlinkNetwork) AddBootstrapper() error {

@@ -230,15 +230,17 @@ func generateJobSpec(oracleContractAddress string) string {
 		}`, oracleContractAddress)
 
 		/*
-			Operator Type that got removed: ,
+			Operator Type that got removed because EthTx finalization is not working: ,
 				{
 				  "type": "EthTx"
 				}
 		 */
 }
 
+/*
+	Parses an HTTP response into the target struct, while also logging it as a string to help develop and debug.
+ */
 func parseAndLogResponse(resp *http.Response, targetStruct interface{}) error{
-	// For debugging
 	var teeBuf bytes.Buffer
 	tee := io.TeeReader(resp.Body, &teeBuf)
 	bodyBytes, err := ioutil.ReadAll(tee)
