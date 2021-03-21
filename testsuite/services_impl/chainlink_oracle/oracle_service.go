@@ -26,6 +26,35 @@ const (
 	runsEndpoint = "v2/runs"
 )
 
+type RunsResponse struct {
+	Data []Run `json:"data"`
+}
+
+type Run struct {
+	Type string `json:"type"`
+	Attributes RunAttributes `json:"attributes"`
+}
+
+type RunAttributes struct {
+	Id string `json:"id"`
+	JobId string `json:"jobId"`
+	Status string `json:"status"`
+	TaskRuns []TaskRun `json:"taskRuns"`
+	Initiator Initiator `json:"initiator"`
+	Payment string `json:"payment"`
+}
+
+type TaskRun struct {
+	Id string `json:"id"`
+	Status string `json:"status"`
+}
+
+type Initiator struct {
+	Id string `json:"id"`
+	JobSpecId string `json:"jobSpecId"`
+}
+
+
 type OracleEthereumKeysResponse struct {
 	Data []OracleEthereumKey `json:"data"`
 }
@@ -67,25 +96,25 @@ func (chainlinkOracleService *ChainlinkOracleService) GetIPAddress() string {
 	return chainlinkOracleService.serviceCtx.GetIPAddress()
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) GetRuns() (string, error) {
+func (chainlinkOracleService *ChainlinkOracleService) GetRuns() ([]Run, error) {
 	if chainlinkOracleService.clientWithSession == nil {
 		_, err := chainlinkOracleService.StartSession()
 		if err != nil {
-			return "", stacktrace.Propagate(err, "Failed to start session on Oracle.")
+			return nil, stacktrace.Propagate(err, "Failed to start session on Oracle.")
 		}
 	}
 	urlStr := fmt.Sprintf("http://%v:%v/%v",
 		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), runsEndpoint)
 	response, err := chainlinkOracleService.clientWithSession.Get(urlStr)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to get runs information from Oracle.")
+		return nil, stacktrace.Propagate(err, "Failed to get runs information from Oracle.")
 	}
-	runsResponse := new(OracleEthereumKeysResponse)
+	runsResponse := new(RunsResponse)
 	err = parseAndLogResponse(response, runsResponse)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
+		return nil, stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
 	}
-	return "", nil
+	return runsResponse.Data, nil
 }
 
 func (chainlinkOracleService *ChainlinkOracleService) GetEthAccounts() ([]OracleEthereumKey, error) {
