@@ -30,7 +30,7 @@ const (
 	waitForJobCompletionTimeBetweenPolls = 1 * time.Second
 	waitForJobCompletionPolls = 30
 
-	oracleEthPreFundingAmount = "10000000000000000000"
+	oracleEthPreFundingAmount = "10000000000000000000000000000"
 )
 
 type ChainlinkNetwork struct {
@@ -176,6 +176,7 @@ func (network *ChainlinkNetwork) RequestData() error {
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
 	}
+	time.Sleep(time.Second * 100000)
 	// Poll to see if the Oracle job has completed.
 	numPolls := 0
 	jobCompleted := false

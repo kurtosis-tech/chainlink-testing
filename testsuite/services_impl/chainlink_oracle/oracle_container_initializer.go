@@ -22,7 +22,7 @@ const (
 	gasUpdaterDelay = 1
 	gasPriceBumpThreshold = 2
 	ethGasBumpWei = "100000000000000000000"
-	gasPriceDefault = 1
+	gasPriceDefault = 100
 	minOutgoingConfirmations = 12
 	minIncomingConfirmations = 0
 
