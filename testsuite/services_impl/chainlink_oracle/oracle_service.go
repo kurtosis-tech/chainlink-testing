@@ -213,4 +213,11 @@ func generateJobSpec(oracleContractAddress string) string {
 				}
 		  ]
 		}`, oracleContractAddress)
+
+		/*
+			Operator Type that got removed: ,
+				{
+				  "type": "EthTx"
+				}
+		 */
 }
