@@ -23,6 +23,7 @@ const (
 	sessionsEndpoint = "sessions"
 	specsEndpoint = "v2/specs"
 	ethAccountsEndpoint = "v2/keys/eth"
+	runsEndpoint = "v2/runs"
 )
 
 type OracleEthereumKeysResponse struct {
@@ -50,6 +51,7 @@ type OracleJobInitiatedData struct {
 
 type ChainlinkOracleService struct {
 	serviceCtx *services.ServiceContext
+	clientWithSession *http.Client
 	sessionCookieJar *cookiejar.Jar
 }
 
@@ -65,8 +67,29 @@ func (chainlinkOracleService *ChainlinkOracleService) GetIPAddress() string {
 	return chainlinkOracleService.serviceCtx.GetIPAddress()
 }
 
+func (chainlinkOracleService *ChainlinkOracleService) GetRuns() (string, error) {
+	if chainlinkOracleService.clientWithSession == nil {
+		_, err := chainlinkOracleService.StartSession()
+		if err != nil {
+			return "", stacktrace.Propagate(err, "Failed to start session on Oracle.")
+		}
+	}
+	urlStr := fmt.Sprintf("http://%v:%v/%v",
+		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), runsEndpoint)
+	response, err := chainlinkOracleService.clientWithSession.Get(urlStr)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "Failed to get runs information from Oracle.")
+	}
+	runsResponse := new(OracleEthereumKeysResponse)
+	err = parseAndLogResponse(response, runsResponse)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
+	}
+	return "", nil
+}
+
 func (chainlinkOracleService *ChainlinkOracleService) GetEthAccounts() ([]OracleEthereumKey, error) {
-	if chainlinkOracleService.sessionCookieJar == nil {
+	if chainlinkOracleService.clientWithSession == nil {
 		_, err := chainlinkOracleService.StartSession()
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "Failed to start session on Oracle.")
@@ -74,38 +97,21 @@ func (chainlinkOracleService *ChainlinkOracleService) GetEthAccounts() ([]Oracle
 	}
 	urlStr := fmt.Sprintf("http://%v:%v/%v",
 		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), ethAccountsEndpoint)
-	// Create new http client with predefined options
-	client := &http.Client{
-		Jar:     chainlinkOracleService.sessionCookieJar,
-		Timeout: time.Second * 60,
-	}
-	resp, err := client.Get(urlStr)
+	response, err := chainlinkOracleService.clientWithSession.Get(urlStr)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Failed to get ethereum account info from Oracle.")
 	}
-	response := new(OracleEthereumKeysResponse)
+	ethereumKeysResponse := new(OracleEthereumKeysResponse)
 
-	// For debugging
-	var teeBuf bytes.Buffer
-	tee := io.TeeReader(resp.Body, &teeBuf)
-	bodyBytes, err := ioutil.ReadAll(tee)
+	err = parseAndLogResponse(response, ethereumKeysResponse)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error parsing oracle response into bytes.")
+		return nil, stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
 	}
-	bodyString := string(bodyBytes)
-	logrus.Infof("Response for Oracle getEthAccounts call: %v", bodyString)
-
-
-	err = json.NewDecoder(&teeBuf).Decode(response)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
-	}
-	logrus.Infof("Response from Chainlink Oracle getEthAccounts: %+v", response)
-	return response.Data, nil
+	return ethereumKeysResponse.Data, nil
 }
 
 func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(oracleContractAddress string) (jobId string, err error) {
-	if chainlinkOracleService.sessionCookieJar == nil {
+	if chainlinkOracleService.clientWithSession == nil {
 		_, err := chainlinkOracleService.StartSession()
 		if err != nil {
 			return "", stacktrace.Propagate(err, "Failed to start session on Oracle.")
@@ -116,35 +122,18 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(oracleContractA
 	urlStr := fmt.Sprintf("http://%v:%v/%v",
 		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), specsEndpoint)
 
-	// Create new http client with predefined options
-	client := &http.Client{
-		Jar:     chainlinkOracleService.sessionCookieJar,
-		Timeout: time.Second * 60,
-	}
-	resp, err := client.Post(urlStr, "application/json", bytes.NewBuffer(jsonByteArray))
+	response, err := chainlinkOracleService.clientWithSession.Post(urlStr, "application/json", bytes.NewBuffer(jsonByteArray))
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the Oracle.")
 	}
-	response := new(OracleJobInitiatedResponse)
-	defer resp.Body.Close()
+	jobInitiatedResponse := new(OracleJobInitiatedResponse)
+	defer response.Body.Close()
 
-	// For debugging
-	var teeBuf bytes.Buffer
-	tee := io.TeeReader(resp.Body, &teeBuf)
-	bodyBytes, err := ioutil.ReadAll(tee)
+	err = parseAndLogResponse(response, jobInitiatedResponse)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Error parsing oracle response into bytes.")
+		return "", stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
 	}
-	bodyString := string(bodyBytes)
-	logrus.Infof("Response for Oracle job spec call: %v", bodyString)
-
-
-	err = json.NewDecoder(&teeBuf).Decode(response)
-	if err != nil {
-		return "", stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
-	}
-	logrus.Infof("Response from Chainlink Oracle: %+v", response)
-	return response.Data.Id, nil
+	return jobInitiatedResponse.Data.Id, nil
 }
 
 func (chainlinkOracleService *ChainlinkOracleService) StartSession() (string, error) {
@@ -166,7 +155,7 @@ func (chainlinkOracleService *ChainlinkOracleService) StartSession() (string, er
 		return "", stacktrace.Propagate(err, "Encountered an error trying to authenticate with the oracle service..")
 	}
 	logrus.Infof("After starting sessions, cookies look like: %+v", jar)
-	chainlinkOracleService.sessionCookieJar = jar
+	chainlinkOracleService.clientWithSession = client
 	return authResp.Status, nil
 }
 
@@ -217,4 +206,24 @@ func generateJobSpec(oracleContractAddress string) string {
 				  "type": "EthTx"
 				}
 		 */
+}
+
+func parseAndLogResponse(resp *http.Response, targetStruct interface{}) error{
+	// For debugging
+	var teeBuf bytes.Buffer
+	tee := io.TeeReader(resp.Body, &teeBuf)
+	bodyBytes, err := ioutil.ReadAll(tee)
+	if err != nil {
+		return stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
+	}
+	bodyString := string(bodyBytes)
+	logrus.Infof("Response from Oracle: %v", bodyString)
+
+
+	err = json.NewDecoder(&teeBuf).Decode(targetStruct)
+	if err != nil {
+		return stacktrace.Propagate(err, "Error parsing Oracle response into a struct.")
+	}
+	logrus.Infof("Response from Chainlink Oracle: %+v", targetStruct)
+	return nil
 }
