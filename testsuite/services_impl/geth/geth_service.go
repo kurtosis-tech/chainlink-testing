@@ -17,6 +17,7 @@ const (
 	adminInfoRpcCall = `{"jsonrpc":"2.0","method": "admin_nodeInfo","params":[],"id":67}`
 	adminPeerRpcCall = `{"jsonrpc":"2.0", "method": "admin_peers","params":[],"id":67}`
 	enodePrefix = "enode://"
+	ipcPath = "ipc:/data/geth.ipc"
 )
 
 type GethService struct {
@@ -96,6 +97,20 @@ func (service GethService) GetEnodeAddress() (string, error) {
 		return "", stacktrace.Propagate(err, "Failed to send admin node info RPC request to geth node %v", service.serviceCtx.GetServiceID())
 	}
 	return nodeInfoResponse.Result.Enode, nil
+}
+
+func (service GethService) SendTransaction(from string, to string, amount string) (error) {
+	cmdArgs := []string{
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("geth attach %v --exec 'eth.sendTransaction({from: \"%v\",to: \"%v\", value: \"%v\"})'", ipcPath, from, to, amount),
+	}
+	_, logOutput, err := service.serviceCtx.ExecCommand(cmdArgs)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to execute command to send eth.")
+	}
+	logrus.Debugf("Logoutput from sendTransaction: %+v", string(*logOutput))
+	return nil
 }
 
 // ===========================================================================================

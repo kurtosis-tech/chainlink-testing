@@ -32,10 +32,8 @@ func (initializer PostgresContainerInitializer) GetUsedPorts() map[string]bool {
 	}
 }
 
-func (initializer PostgresContainerInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
-	return func(ctx *services.ServiceContext) services.Service {
-		return NewPostgresService(ctx);
-	};
+func (initializer PostgresContainerInitializer) GetService(ctx *services.ServiceContext) services.Service {
+	return NewPostgresService(ctx);
 }
 
 func (initializer PostgresContainerInitializer) GetFilesToGenerate() map[string]bool {
@@ -48,6 +46,10 @@ func (initializer PostgresContainerInitializer) InitializeGeneratedFiles(mounted
 
 func (initializer PostgresContainerInitializer) GetFilesArtifactMountpoints() map[services.FilesArtifactID]string {
 	return map[services.FilesArtifactID]string{}
+}
+
+func (initializer PostgresContainerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
+	return map[string]string{}, nil
 }
 
 func (initializer PostgresContainerInitializer) GetTestVolumeMountpoint() string {

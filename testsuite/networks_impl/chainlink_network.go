@@ -8,6 +8,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
+	"github.com/sirupsen/logrus"
 	"strconv"
 	"time"
 )
@@ -15,28 +16,39 @@ import (
 const (
 	ethereumBootstrapperId services.ServiceID = "ethereum-bootstrapper"
 	gethServiceIdPrefix                       = "ethereum-node-"
+	jobCompletedStatus string				  = "completed"
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 	postgresId services.ServiceID = "postgres"
 	chainlinkOracleId services.ServiceID = "chainlink-oracle"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
+
+	waitForTransactionFinalizationTimeBetweenPolls = 1 * time.Second
+	waitForTransactionFinalizationPolls = 30
+
+	waitForJobCompletionTimeBetweenPolls = 1 * time.Second
+	waitForJobCompletionPolls = 30
+
+	oracleEthPreFundingAmount = "10000000000000000000000000000"
 )
 
 type ChainlinkNetwork struct {
-	networkCtx                *networks.NetworkContext
-	gethDataDirArtifactId     services.FilesArtifactID
-	gethServiceImage          string
-	gethBootsrapperService    *geth.GethService
-	gethServices              map[services.ServiceID]*geth.GethService
-	nextGethServiceId         int
-	linkTokenAddress		  string
-	linkContractDeployerImage string
+	networkCtx                  *networks.NetworkContext
+	gethDataDirArtifactId       services.FilesArtifactID
+	gethServiceImage            string
+	gethBootsrapperService      *geth.GethService
+	gethServices                map[services.ServiceID]*geth.GethService
+	nextGethServiceId           int
+	linkContractAddress         string
+	oracleContractAddress		string
+	linkContractDeployerImage   string
 	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
-	postgresImage			  string
-	postgresService  		  *postgres.PostgresService
-	chainlinkOracleImage	  string
-	chainlinkOracleService	  *chainlink_oracle.ChainlinkOracleService
+	postgresImage               string
+	postgresService             *postgres.PostgresService
+	chainlinkOracleImage        string
+	chainlinkOracleService      *chainlink_oracle.ChainlinkOracleService
+	priceFeedJobId				string
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
@@ -48,10 +60,10 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		gethBootsrapperService:    nil,
 		gethServices:              map[services.ServiceID]*geth.GethService{},
 		nextGethServiceId:         0,
-		linkTokenAddress:          "",
+		linkContractAddress:       "",
 		linkContractDeployerImage: linkContractDeployerImage,
-		postgresImage: 			   postgresImage,
-		chainlinkOracleImage:	   chainlinkOracleImage,
+		postgresImage:             postgresImage,
+		chainlinkOracleImage:      chainlinkOracleImage,
 	}
 }
 
@@ -72,11 +84,28 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	castedContractDeployer := uncastedContractDeployer.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
 	network.linkContractDeployerService = castedContractDeployer
 
-	address, err := network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
+	linkContractAddress, oracleContractAddress, err := network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")
 	}
-	network.linkTokenAddress = address
+	network.linkContractAddress = linkContractAddress
+	network.oracleContractAddress = oracleContractAddress
+	return nil
+}
+
+func (network *ChainlinkNetwork) DeployOracleJob() error {
+	if network.oracleContractAddress == "" {
+		return stacktrace.NewError("Can not deploy Oracle job because Oracle contract has not yet been deployed.")
+	}
+	oracleService := network.GetChainlinkOracle()
+	jobId, err := oracleService.SetJobSpec(network.oracleContractAddress)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to set job spec.")
+	}
+	network.priceFeedJobId = jobId
+	logrus.Debugf("Information for running smart contract: Oracle Address: %v, JobId: %v",
+		network.oracleContractAddress,
+		network.priceFeedJobId)
 	return nil
 }
 
@@ -87,6 +116,107 @@ func (network *ChainlinkNetwork) FundLinkWallet() error {
 	err := network.linkContractDeployerService.FundLinkWalletContract()
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred funding an initial $LINK wallet on the testnet.")
+	}
+	return nil
+}
+
+func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
+	if network.chainlinkOracleService == nil {
+		return stacktrace.NewError("Tried to fund Oracle eth accounts before deploying Oracle.")
+	}
+	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
+	}
+	for _, ethAccount := range oracleEthAccounts {
+		toAddress := ethAccount.Attributes.Address
+		err = network.gethBootsrapperService.SendTransaction(geth.FirstFundedAddress, toAddress, oracleEthPreFundingAmount)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred sending eth between accounts.")
+		}
+	}
+
+	/*
+		Poll for transaction finalization so that we know that the Oracle's ethereum accounts are funded.
+		See: https://docs.chain.link/docs/running-a-chainlink-node#start-the-chainlink-node, "you will
+		need to send some ETH to your node's address in order for it to fulfill requests".
+	 */
+	ethAccountsFunded := false
+	numPolls := 0
+	for !ethAccountsFunded && numPolls < waitForTransactionFinalizationPolls {
+		time.Sleep(waitForTransactionFinalizationTimeBetweenPolls)
+		oracleEthAccounts, err = network.chainlinkOracleService.GetEthAccounts()
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
+		}
+		numPolls += 1
+
+		// Eth Accounts are considered funded if every eth account the Oracle owns is funded (has balance != 0)
+		allAccountsFunded := true
+		for _, account := range(oracleEthAccounts) {
+			allAccountsFunded = allAccountsFunded && (account.Attributes.EthBalance != "0")
+		}
+		ethAccountsFunded = ethAccountsFunded || allAccountsFunded
+	}
+	return nil
+}
+
+/*
+	Runs scripts on the contract deployer container which request data from the Oracle.
+ */
+func (network *ChainlinkNetwork) RequestData() error {
+	if network.chainlinkOracleService == nil {
+		return stacktrace.NewError("Tried to request data before deploying the oracle service.")
+	}
+	if network.oracleContractAddress == "" {
+		return stacktrace.NewError("Tried to request data before deploying the oracle contract.")
+	}
+	if network.linkContractDeployerService == nil {
+		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
+	}
+	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
+	if err != nil {
+		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
+	}
+
+	for _, ethAccount := range oracleEthAccounts {
+		ethAddress := ethAccount.Attributes.Address
+		logrus.Infof("Setting permissions for address %v to run code from oracle contract %v.",
+			ethAddress,
+			network.oracleContractAddress)
+		err = network.linkContractDeployerService.SetFulfillmentPermissions(
+			network.GetBootstrapper().GetIPAddress(),
+			strconv.Itoa(network.GetBootstrapper().GetRpcPort()),
+			network.oracleContractAddress,
+			ethAddress,
+		)
+		if err != nil {
+			return stacktrace.Propagate(err, "Error occurred setting fulfillent permissions.")
+		}
+	}
+
+	logrus.Infof("Calling the Oracle contract to run job %v.", network.priceFeedJobId)
+	// Request data from the Oracle smart contract, starting a job.
+	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
+	}
+	// Poll to see if the Oracle job has completed.
+	numPolls := 0
+	jobCompleted := false
+	for !jobCompleted && numPolls < waitForJobCompletionPolls {
+		time.Sleep(waitForJobCompletionTimeBetweenPolls)
+		runs, err := network.chainlinkOracleService.GetRuns()
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred getting runs data from the Oracle service.")
+		}
+		for _, run := range(runs) {
+			// If the Oracle has a completed run with the same jobId as the priceFeed, job is complete.
+			if run.Attributes.JobId == network.priceFeedJobId {
+				jobCompleted = jobCompleted || run.Attributes.Status == jobCompletedStatus
+			}
+		}
+		numPolls += 1
 	}
 	return nil
 }
@@ -127,14 +257,17 @@ func (network *ChainlinkNetwork) AddPostgres() error {
 }
 
 func (network *ChainlinkNetwork) AddOracleService() error {
-	if network.linkTokenAddress == "" {
+	if network.linkContractAddress == "" {
 		return stacktrace.NewError("Tried to add an oracle service, but the $LINK token contract has not yet been deployed.")
+	}
+	if network.oracleContractAddress == "" {
+		return stacktrace.NewError("Tried to add an oracle service, but the Oracle contract has not yet been deployed.")
 	}
 	if network.chainlinkOracleService != nil {
 		return stacktrace.NewError("Tried to add an oracle service, but one has already been added!")
 	}
 	initializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(network.chainlinkOracleImage,
-		network.linkTokenAddress, network.gethBootsrapperService, network.postgresService)
+		network.linkContractAddress, network.oracleContractAddress, network.gethBootsrapperService, network.postgresService)
 	uncastedChainlinkOracle, checker, err := network.networkCtx.AddService(chainlinkOracleId, initializer)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred adding the Chainlink Oracle service.")
@@ -152,7 +285,7 @@ func (network *ChainlinkNetwork) GetBootstrapper() *geth.GethService {
 }
 
 func (network *ChainlinkNetwork) GetLinkContractAddress() string {
-	return network.linkTokenAddress
+	return network.linkContractAddress
 }
 
 func (network *ChainlinkNetwork) GetChainlinkOracle() *chainlink_oracle.ChainlinkOracleService {

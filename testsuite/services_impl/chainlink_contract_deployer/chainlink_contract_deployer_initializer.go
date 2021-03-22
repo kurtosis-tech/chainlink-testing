@@ -7,7 +7,8 @@ import (
 )
 
 const (
-	sleepSeconds = 720
+	sleepSeconds = 7200
+	defaultLinkFunding = "1000000000000000000000"
 )
 
 type ChainlinkContractDeployerInitializer struct {
@@ -25,14 +26,11 @@ func (initializer ChainlinkContractDeployerInitializer) GetDockerImage() string 
 }
 
 func (initializer ChainlinkContractDeployerInitializer) GetUsedPorts() map[string]bool {
-	return map[string]bool{
-	}
+	return map[string]bool{}
 }
 
-func (initializer ChainlinkContractDeployerInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
-	return func(ctx *services.ServiceContext) services.Service {
-		return NewChainlinkContractDeployerService(ctx);
-	};
+func (initializer ChainlinkContractDeployerInitializer) GetService(ctx *services.ServiceContext) services.Service {
+	return NewChainlinkContractDeployerService(ctx);
 }
 
 func (initializer ChainlinkContractDeployerInitializer) GetFilesToGenerate() map[string]bool {
@@ -49,6 +47,12 @@ func (initializer ChainlinkContractDeployerInitializer) GetFilesArtifactMountpoi
 
 func (initializer ChainlinkContractDeployerInitializer) GetTestVolumeMountpoint() string {
 	return testVolumeMountpoint
+}
+
+func (initializer ChainlinkContractDeployerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
+	return map[string]string{
+		"TRUFFLE_CL_BOX_PAYMENT": defaultLinkFunding,
+	}, nil
 }
 
 func (initializer ChainlinkContractDeployerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {

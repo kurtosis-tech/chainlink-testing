@@ -13,24 +13,26 @@ const (
 	wsPort 		  = 8546
 	discoveryPort = 30303
 
-	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
-	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool"
+	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool,debug"
+	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool,debug"
 	keystoreFilename = "keystore"
 	genesisJsonFilename = "genesis.json"
 	passwordFilename = "password.txt"
 	gasPrice = 1
-	gasTarget = 1
 	gethDataMountedDirpath = "/geth-mounted-data"
 	gethTgzDataDir = "geth-data-dir"
 	firstAccountPassword = "password"
+	targetGasLimit = 10000000
 
-	FirstAccountPublicKey = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
+	FirstFundedAddress  = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
+	SecondFundedAddress = "0x6f75c1925ef6d0c9a23fba6e4b889c52dd9d7f74"
 
 	// The geth node opens a socket for IPC communication in the data directory.
 	// This socket opening does not work on mounted filesystems, so runtime data directory needs to be off the mount.
 	// See: https://github.com/ethereum/go-ethereum/issues/16342
 	gethDataRuntimeDirpath = "/data"
 
+	PrivateKeyPassword = "password"
 	PrivateNetworkId     = 9
 	TestVolumeMountpoint = "/test-volume"
 )
@@ -64,10 +66,8 @@ func (initializer GethContainerInitializer) GetUsedPorts() map[string]bool {
 	}
 }
 
-func (initializer GethContainerInitializer) GetServiceWrappingFunc() func(ctx *services.ServiceContext) services.Service {
-	return func(ctx *services.ServiceContext) services.Service {
-		return NewGethService(ctx, rpcPort);
-	};
+func (initializer GethContainerInitializer) GetService(ctx *services.ServiceContext) services.Service {
+	return NewGethService(ctx, rpcPort);
 }
 
 func (initializer GethContainerInitializer) GetFilesToGenerate() map[string]bool {
@@ -101,6 +101,10 @@ func (initializer GethContainerInitializer) GetTestVolumeMountpoint() string {
 	return TestVolumeMountpoint
 }
 
+func (initializer GethContainerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	// This is a bootstrapper
 	// TODO TODO TODO fix tgz so that it doesn't contain the directory at the root
@@ -110,17 +114,17 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
 		gethDataRuntimeDirpath,
 		PrivateNetworkId)
-	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v ",
+	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v --gcmode archive --syncmode full ",
 		httpExposedApisString,
 		ipPlaceholder,
 		ipPlaceholder)
 	// Chainlink oracles require websocket communication
 	entrypointCommand += fmt.Sprintf("--ws --ws.addr %v --ws.port %v --ws.api %v --ws.origins=\"*\" ", ipPlaceholder, wsPort, wsExposedApisString)
 	if initializer.isMiner {
-		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gastarget=%v ",
-			FirstAccountPublicKey, gasPrice, gasTarget)
+		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gaslimit=%v ",
+			FirstFundedAddress, gasPrice, targetGasLimit)
 		// unlock the first account for use in spawning $LINK contract and distributing funds.
-		entrypointCommand += fmt.Sprintf("--unlock %v --password %v  --allow-insecure-unlock ", FirstAccountPublicKey, mountedFileFilepaths[passwordFilename])
+		entrypointCommand += fmt.Sprintf("--unlock %v --password %v  --allow-insecure-unlock ", FirstFundedAddress, mountedFileFilepaths[passwordFilename])
 	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()
