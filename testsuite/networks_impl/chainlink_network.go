@@ -194,6 +194,8 @@ func (network *ChainlinkNetwork) RequestData() error {
 			return stacktrace.Propagate(err, "Error occurred setting fulfillent permissions.")
 		}
 	}
+
+	logrus.Infof("Calling the Oracle contract to run job %v.", network.priceFeedJobId)
 	// Request data from the Oracle smart contract, starting a job.
 	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
 	if err != nil {
