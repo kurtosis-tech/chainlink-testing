@@ -191,7 +191,7 @@ func (network *ChainlinkNetwork) RequestData() error {
 			ethAddress,
 		)
 		if err != nil {
-
+			return stacktrace.Propagate(err, "Error occurred setting fulfillent permissions.")
 		}
 	}
 	// Request data from the Oracle smart contract, starting a job.
