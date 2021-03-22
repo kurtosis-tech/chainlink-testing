@@ -19,6 +19,7 @@ const (
 	linkTokenContractSplitter = "Deploying 'LinkToken'\n"
 	oracleContractSplitter      = "Deploying 'Oracle'\n"
 	myContractSplitter      = "Deploying 'MyContract'\n"
+	setOracleFulfillmentPermissionsPath = "ethers_js_scripts/setOracleFulfillmentPermissions.js"
 
 	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
 	testVolumeMountpoint = geth.TestVolumeMountpoint
@@ -116,6 +117,28 @@ func (deployer ChainlinkContractDeployerService) FundLinkWalletContract() error 
 	}
 	logOutputStr := string(*logOutput)
 	logrus.Debugf("Log output from funding wallet: %+v", logOutputStr)
+	return nil
+}
+
+func (deployer ChainlinkContractDeployerService) SetFulfillmentPermissions(gethServiceIpAddress string, gethServicePort string,
+		oracleContractAddress string, oracleEthereumAccount string) error {
+	setPermissionCommand := []string {
+		"/bin/sh",
+		"-c",
+		fmt.Sprintf("export ETH_RPC_URL=http://%v:%v && " +
+			"export PRIVATE_KEY_JSON_PASSWORD=%v && " +
+			"export ORACLE_CONTRACT_ADDRESS=%v && " +
+			"export ORACLE_ETHEREUM_ADDRESS=%v && " +
+			"node %v", gethServiceIpAddress, gethServicePort, geth.PrivateKeyPassword,
+				oracleContractAddress, oracleEthereumAccount, setOracleFulfillmentPermissionsPath),
+	}
+	statusCode, logOutput, err := deployer.serviceCtx.ExecCommand(setPermissionCommand)
+	if err != nil {
+		return stacktrace.Propagate(err, "Failed to execute set permission script.")
+	}
+	if statusCode != 0 {
+		return stacktrace.NewError("Got a non-zero exit code from set permission script with logOutput %v", logOutput)
+	}
 	return nil
 }
 

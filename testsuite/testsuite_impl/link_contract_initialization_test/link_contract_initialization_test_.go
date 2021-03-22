@@ -127,8 +127,6 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 		testCtx.Fatal(stacktrace.Propagate(err, "Error deploying Oracle job."))
 	}
 
-	time.Sleep(300000 * time.Second)
-
 	logrus.Infof("Using on-chain smart contracts to trigger job from the Oracle smart contract.")
 	err = chainlinkNetwork.RequestData()
 	if err != nil {

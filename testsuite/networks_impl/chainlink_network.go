@@ -128,7 +128,7 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
 	}
-	for _, ethAccount := range(oracleEthAccounts) {
+	for _, ethAccount := range oracleEthAccounts {
 		toAddress := ethAccount.Attributes.Address
 		err = network.gethBootsrapperService.SendTransaction(geth.FirstFundedAddress, toAddress, oracleEthPreFundingAmount)
 		if err != nil {
@@ -161,6 +161,9 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	return nil
 }
 
+/*
+	Runs scripts on the contract deployer container which request data from the Oracle.
+ */
 func (network *ChainlinkNetwork) RequestData() error {
 	if network.chainlinkOracleService == nil {
 		return stacktrace.NewError("Tried to request data before deploying the oracle service.")
@@ -171,12 +174,31 @@ func (network *ChainlinkNetwork) RequestData() error {
 	if network.linkContractDeployerService == nil {
 		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
 	}
+	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
+	if err != nil {
+		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
+	}
+
+	for _, ethAccount := range oracleEthAccounts {
+		ethAddress := ethAccount.Attributes.Address
+		logrus.Infof("Setting permissions for address %v to run code from oracle contract %v.",
+			ethAddress,
+			network.oracleContractAddress)
+		err = network.linkContractDeployerService.SetFulfillmentPermissions(
+			network.GetBootstrapper().GetIPAddress(),
+			strconv.Itoa(network.GetBootstrapper().GetRpcPort()),
+			network.oracleContractAddress,
+			ethAddress,
+		)
+		if err != nil {
+
+		}
+	}
 	// Request data from the Oracle smart contract, starting a job.
-	err := network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
+	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
 	}
-	time.Sleep(time.Second * 100000)
 	// Poll to see if the Oracle job has completed.
 	numPolls := 0
 	jobCompleted := false

@@ -32,6 +32,7 @@ const (
 	// See: https://github.com/ethereum/go-ethereum/issues/16342
 	gethDataRuntimeDirpath = "/data"
 
+	PrivateKeyPassword = "password"
 	PrivateNetworkId     = 9
 	TestVolumeMountpoint = "/test-volume"
 )

@@ -1,15 +1,19 @@
 let ethers = require('ethers')
 
-let ETH_RPC_URL="http://172.23.0.5:8545"
-let PRIVATE_KEY_JSON_PASSWORD = "password"
-let ORACLE_CONTRACT_ADDRESS='0x4758E84AbAD42355454fC85cdED2e64A82ad15E0'
-let ORACLE_ETHEREUM_ADDRESS='0xaDE5c9d2D994a729AF54FEd9e8b84d05727e19e2'
+let ETH_RPC_URL = process.env.ETH_RPC_URL
+let PRIVATE_KEY_JSON_PASSWORD = process.env.PRIVATE_KEY_JSON_PASSWORD //"password"
+let ORACLE_CONTRACT_ADDRESS = process.env.ORACLE_CONTRACT_ADDRESS //'0x4758E84AbAD42355454fC85cdED2e64A82ad15E0'
+let ORACLE_ETHEREUM_ADDRESS = process.env.ORACLE_ETHEREUM_ADDRESS // '0xaDE5c9d2D994a729AF54FEd9e8b84d05727e19e2'
+
+// TODO TODO TODO Read this from a file mounted as an artifact from the same S3 bucket the Geth nodes read from
 let PRIVATE_KEY_JSON = {"address":"8ea1441a74ffbe9504a8cb3f7e4b7118d8ccfc56","crypto":{"cipher":"aes-128-ctr","ciphertext":"2dfb66792b39f458365f8604e959d000a57a44c5c9e935130da75edb21571666","cipherparams":{"iv":"c75546ec881dcd668e7d9cb4f75d24f3"},"kdf":"scrypt","kdfparams":{"dklen":32,"n":262144,"p":1,"r":8,"salt":"4cb212065dfaba68e7a2e99f42d2bf4e10edc5793390424bfeb4c73a381dbdfd"},"mac":"98c469923b668bd1655e8acdb40b7d9d5ceae53058b5fd706064595d10b67142"},"id":"f64bbf7e-e34f-442e-91b9-9bc0a1190edf","version":3}
 let json = JSON.stringify(PRIVATE_KEY_JSON)
 
 
 let provider = new ethers.providers.JsonRpcProvider(ETH_RPC_URL)
 let oracleAddress = ORACLE_CONTRACT_ADDRESS
+
+// Oracle ABI from standard Oracle.sol smart contract, hardcoded.
 let oracleAbi = [
     {
         "constant": false,
