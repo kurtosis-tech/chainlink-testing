@@ -307,8 +307,8 @@ func (network *ChainlinkNetwork) AddPriceFeedServer() error {
 	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
 		return stacktrace.Propagate(err, "An error occurred waiting for the price feed server to start")
 	}
-	castedPriceFeedServer := uncastedPriceFeedServer.(price_feed_server.PriceFeedServer)
-	network.priceFeedServer = &castedPriceFeedServer
+	castedPriceFeedServer := uncastedPriceFeedServer.(*price_feed_server.PriceFeedServer)
+	network.priceFeedServer = castedPriceFeedServer
 	return nil
 }
 
