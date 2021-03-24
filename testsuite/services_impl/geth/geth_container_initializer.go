@@ -19,7 +19,7 @@ const (
 	genesisJsonFilename = "genesis.json"
 	passwordFilename = "password.txt"
 	gasPrice = 1
-	gethDataMountedDirpath = "/geth-mounted-data"
+	gethDataMountedDirpath = "/geth-data-dir"
 	gethTgzDataDir = "geth-data-dir"
 	firstAccountPassword = "password"
 	targetGasLimit = 10000000
@@ -107,7 +107,6 @@ func (initializer GethContainerInitializer) GetEnvironmentVariableOverrides() (m
 
 func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	// This is a bootstrapper
-	// TODO TODO TODO fix tgz so that it doesn't contain the directory at the root
 	entrypointCommand := fmt.Sprintf("mkdir -p %v && cp -r %v/%v/* %v/ && ", gethDataRuntimeDirpath, gethDataMountedDirpath, gethTgzDataDir, gethDataRuntimeDirpath)
 	entrypointCommand += fmt.Sprintf("geth init --datadir %v %v && ", gethDataRuntimeDirpath, mountedFileFilepaths[genesisJsonFilename])
 	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
