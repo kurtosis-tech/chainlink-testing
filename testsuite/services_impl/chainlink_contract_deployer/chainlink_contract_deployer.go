@@ -146,17 +146,17 @@ func (deployer ChainlinkContractDeployerService) RunRequestDataScript(oracleCont
 		fmt.Sprintf("export TRUFFLE_CL_BOX_ORACLE_ADDRESS=%v && " +
 			"export TRUFFLE_CL_BOX_JOB_ID=%v && " +
 			"export TRUFFLE_CL_BOX_URL=%v && " +
-			"npx truffle exec scripts/request-genesis.js --network %v",
+			"npx truffle exec scripts/request-data.js --network %v",
 			oracleContractAddress, jobId, priceFeedUrl, devNetworkId),
 	}
 	// We don't check the error code here because the fund-contract script from Chainlink
 	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
 	_, logOutput, err := deployer.serviceCtx.ExecCommand(requestDataCommand)
 	if err != nil {
-		return stacktrace.Propagate(err, "Failed to execute request genesis command on contract deployer service.")
+		return stacktrace.Propagate(err, "Failed to execute request data command on contract deployer service.")
 	}
 	logOutputStr := string(*logOutput)
-	logrus.Debugf("Log output from requesting genesis: %+v", logOutputStr)
+	logrus.Debugf("Log output from requesting data: %+v", logOutputStr)
 	return nil
 }
 
