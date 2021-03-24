@@ -19,8 +19,8 @@ const (
 	genesisJsonFilename    = "genesis.json"
 	passwordFilename       = "password.txt"
 	gasPrice               = 1
-	gethDataMountedDirpath = "/geth-genesis-dir"
-	gethTgzDataDir         = "geth-genesis-dir"
+	gethDataMountedDirpath = "/geth-data-dir"
+	gethTgzDataDir         = "geth-data-dir"
 	privateKeyFilePassword = "password"
 	targetGasLimit         = 10000000
 
