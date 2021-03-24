@@ -78,7 +78,8 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	if len(network.gethServices) == 0 {
 		return stacktrace.NewError("Can not deploy contract because the network does not have non-bootstrapper nodes yet.")
 	}
-	// TODO TODO TODO Be more principled about which service to deploy on
+
+	// We could pick any node here, but we go with the bootstrapper arbitrarily.
 	deployService := network.gethBootsrapperService
 	initializer := chainlink_contract_deployer.NewChainlinkContractDeployerInitializer(network.linkContractDeployerImage)
 	uncastedContractDeployer, checker, err := network.networkCtx.AddService(linkContractDeployerId, initializer)
