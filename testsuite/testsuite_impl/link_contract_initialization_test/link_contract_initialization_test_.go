@@ -52,6 +52,11 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		return nil, stacktrace.Propagate(err, "Error adding postgres to the network.")
 	}
 
+	err = chainlinkNetwork.AddPriceFeedServer()
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Error adding the price feed server to the network.")
+	}
+
 	err = chainlinkNetwork.AddBootstrapper()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
