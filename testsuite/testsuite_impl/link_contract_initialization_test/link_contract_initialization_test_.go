@@ -138,7 +138,7 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	logrus.Infof("Using on-chain smart contracts to trigger job from the Oracle smart contract.")
 	err = chainlinkNetwork.RequestData()
 	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting genesis from Chainlink oracle."))
+		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting data from Chainlink oracle."))
 	}
 
 	logrus.Infof("Oracle successfully ran job accessing a remote price feed URL.")

@@ -19,7 +19,7 @@ const (
 	genesisJsonFilename    = "genesis.json"
 	passwordFilename       = "password.txt"
 	gasPrice               = 1
-	gethDataMountedDirpath = "/geth-data-dir"
+	gethDataMountedDirpath = "/geth-mounted-data"
 	gethTgzDataDir         = "geth-data-dir"
 	privateKeyFilePassword = "password"
 	targetGasLimit         = 10000000
@@ -29,7 +29,7 @@ const (
 	// The geth node opens a socket for IPC communication in the genesis directory.
 	// This socket opening does not work on mounted filesystems, so runtime genesis directory needs to be off the mount.
 	// See: https://github.com/ethereum/go-ethereum/issues/16342
-	gethDataRuntimeDirpath = "/genesis"
+	gethDataRuntimeDirpath = "/data"
 
 	PrivateKeyPassword = "password"
 	PrivateNetworkId     = 9
