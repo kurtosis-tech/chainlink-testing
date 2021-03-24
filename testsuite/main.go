@@ -24,7 +24,7 @@ func main() {
 	customParamsJsonArg := flag.String(
 		"custom-params-json",
 		"{}",
-		"JSON string containing custom data that the testsuite will deserialize to modify runtime behaviour",
+		"JSON string containing custom genesis that the testsuite will deserialize to modify runtime behaviour",
 	)
 
 	kurtosisApiSocketArg := flag.String(

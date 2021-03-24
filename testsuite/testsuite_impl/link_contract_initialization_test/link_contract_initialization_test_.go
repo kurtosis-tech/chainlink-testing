@@ -13,8 +13,8 @@ import (
 const (
 	numberOfExtraNodes = 2
 
-	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
-	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
+	gethDataDirArtifactId  services.FilesArtifactID = "geth-genesis-dir"
+	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.amazonaws.com/client-artifacts/chainlink/geth-genesis-dir.tgz"
 )
 
 type LinkContractInitializationTest struct {
@@ -138,7 +138,7 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	logrus.Infof("Using on-chain smart contracts to trigger job from the Oracle smart contract.")
 	err = chainlinkNetwork.RequestData()
 	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting data from Chainlink oracle."))
+		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting genesis from Chainlink oracle."))
 	}
 
 	logrus.Infof("Oracle successfully ran job accessing a remote price feed URL.")

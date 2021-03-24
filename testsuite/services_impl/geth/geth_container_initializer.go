@@ -3,7 +3,7 @@ package geth
 import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
-	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/data"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/genesis"
 	"github.com/palantir/stacktrace"
 	"os"
 )
@@ -13,23 +13,23 @@ const (
 	wsPort 		  = 8546
 	discoveryPort = 30303
 
-	httpExposedApisString = "admin,eth,net,web3,miner,personal,txpool,debug"
-	wsExposedApisString = "admin,eth,net,web3,miner,personal,txpool,debug"
-	keystoreFilename = "keystore"
-	genesisJsonFilename = "genesis.json"
-	passwordFilename = "password.txt"
-	gasPrice = 1
-	gethDataMountedDirpath = "/geth-data-dir"
-	gethTgzDataDir = "geth-data-dir"
-	firstAccountPassword = "password"
-	targetGasLimit = 10000000
+	httpExposedApisString  = "admin,eth,net,web3,miner,personal,txpool,debug"
+	wsExposedApisString    = "admin,eth,net,web3,miner,personal,txpool,debug"
+	keystoreFilename       = "keystore"
+	genesisJsonFilename    = "genesis.json"
+	passwordFilename       = "password.txt"
+	gasPrice               = 1
+	gethDataMountedDirpath = "/geth-genesis-dir"
+	gethTgzDataDir         = "geth-genesis-dir"
+	privateKeyFilePassword = "password"
+	targetGasLimit         = 10000000
 
 	FirstFundedAddress  = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
 
-	// The geth node opens a socket for IPC communication in the data directory.
-	// This socket opening does not work on mounted filesystems, so runtime data directory needs to be off the mount.
+	// The geth node opens a socket for IPC communication in the genesis directory.
+	// This socket opening does not work on mounted filesystems, so runtime genesis directory needs to be off the mount.
 	// See: https://github.com/ethereum/go-ethereum/issues/16342
-	gethDataRuntimeDirpath = "/data"
+	gethDataRuntimeDirpath = "/genesis"
 
 	PrivateKeyPassword = "password"
 	PrivateNetworkId     = 9
@@ -77,13 +77,13 @@ func (initializer GethContainerInitializer) GetFilesToGenerate() map[string]bool
 }
 
 func (initializer GethContainerInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {
-	genesisJson := data.GenesisJson
+	genesisJson := genesis.GenesisJson
 	genesisFp := mountedFiles[genesisJsonFilename]
 	_, err := genesisFp.WriteString(genesisJson)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to write genesis config.")
 	}
-	_, err = mountedFiles[passwordFilename].WriteString(firstAccountPassword)
+	_, err = mountedFiles[passwordFilename].WriteString(privateKeyFilePassword)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to write password file.")
 	}

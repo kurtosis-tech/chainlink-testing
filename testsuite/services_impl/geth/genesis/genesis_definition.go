@@ -1,4 +1,4 @@
-package data
+package genesis
 
 // see the clique genesis json here: https://geth.ethereum.org/docs/interface/private-network
 // must have extradata contain the default account, first funded. this is the default signer set for clique genesis
