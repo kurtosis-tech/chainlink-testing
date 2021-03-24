@@ -27,7 +27,7 @@ const (
 )
 
 type RunsResponse struct {
-	Data []Run `json:"genesis"`
+	Data []Run `json:"data"`
 }
 
 type Run struct {
@@ -56,7 +56,7 @@ type Initiator struct {
 
 
 type OracleEthereumKeysResponse struct {
-	Data []OracleEthereumKey `json:"genesis"`
+	Data []OracleEthereumKey `json:"data"`
 }
 
 type OracleEthereumKey struct {
@@ -71,7 +71,7 @@ type EthereumKeyAttributes struct {
 }
 
 type OracleJobInitiatedResponse struct {
-	Data OracleJobInitiatedData `json:"genesis"`
+	Data OracleJobInitiatedData `json:"data"`
 }
 
 type OracleJobInitiatedData struct {
