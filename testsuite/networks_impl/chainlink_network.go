@@ -231,6 +231,9 @@ func (network *ChainlinkNetwork) RequestData() error {
 		}
 		numPolls += 1
 	}
+	if !jobCompleted {
+		return stacktrace.NewError("Oracle job %v failed.", network.priceFeedJobId)
+	}
 	return nil
 }
 

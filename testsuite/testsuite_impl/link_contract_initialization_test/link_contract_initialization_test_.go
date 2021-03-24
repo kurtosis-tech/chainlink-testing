@@ -141,6 +141,8 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting data from Chainlink oracle."))
 	}
 
+	time.Sleep(30000 * time.Second)
+
 	logrus.Infof("Oracle successfully ran job accessing a remote price feed URL.")
 }
 

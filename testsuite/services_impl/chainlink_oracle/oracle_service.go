@@ -215,7 +215,7 @@ func generateJobSpec(oracleContractAddress string) string {
 		  ],
 		  "tasks": [
 				{
-				  "type": "HttpGet"
+				  "type": "HttpGetWithUnrestrictedNetworkAccess"
 				},
 				{
 				  "type": "JsonParse"
