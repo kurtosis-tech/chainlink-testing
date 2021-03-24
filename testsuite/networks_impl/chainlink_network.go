@@ -1,12 +1,14 @@
 package networks_impl
 
 import (
+	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_oracle"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/price_feed_server"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"strconv"
@@ -19,6 +21,7 @@ const (
 	jobCompletedStatus string				  = "completed"
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 	postgresId services.ServiceID = "postgres"
+	priceFeedServerId services.ServiceID = "price-feed-server"
 	chainlinkOracleId services.ServiceID = "chainlink-oracle"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
@@ -48,11 +51,14 @@ type ChainlinkNetwork struct {
 	postgresService             *postgres.PostgresService
 	chainlinkOracleImage        string
 	chainlinkOracleService      *chainlink_oracle.ChainlinkOracleService
+	priceFeedServerImage		string
+	priceFeedServer				*price_feed_server.PriceFeedServer
 	priceFeedJobId				string
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
-	gethServiceImage string, linkContractDeployerImage string, postgresImage string, chainlinkOracleImage string) *ChainlinkNetwork {
+	gethServiceImage string, linkContractDeployerImage string, postgresImage string,
+	chainlinkOracleImage string, priceFeedServerImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
 		networkCtx:                networkCtx,
 		gethDataDirArtifactId:     gethDataDirArtifactId,
@@ -64,6 +70,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		linkContractDeployerImage: linkContractDeployerImage,
 		postgresImage:             postgresImage,
 		chainlinkOracleImage:      chainlinkOracleImage,
+		priceFeedServerImage:	   priceFeedServerImage,
 	}
 }
 
@@ -71,7 +78,8 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	if len(network.gethServices) == 0 {
 		return stacktrace.NewError("Can not deploy contract because the network does not have non-bootstrapper nodes yet.")
 	}
-	// TODO TODO TODO Be more principled about which service to deploy on
+
+	// We could pick any node here, but we go with the bootstrapper arbitrarily.
 	deployService := network.gethBootsrapperService
 	initializer := chainlink_contract_deployer.NewChainlinkContractDeployerInitializer(network.linkContractDeployerImage)
 	uncastedContractDeployer, checker, err := network.networkCtx.AddService(linkContractDeployerId, initializer)
@@ -174,6 +182,9 @@ func (network *ChainlinkNetwork) RequestData() error {
 	if network.linkContractDeployerService == nil {
 		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
 	}
+	if network.priceFeedServer == nil {
+		return stacktrace.NewError("Tried to request data before deploying the in-network price feed server service.")
+	}
 	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
 	if err != nil {
 		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
@@ -196,8 +207,10 @@ func (network *ChainlinkNetwork) RequestData() error {
 	}
 
 	logrus.Infof("Calling the Oracle contract to run job %v.", network.priceFeedJobId)
+
+	priceFeedUrl := fmt.Sprintf("http://%v:%v/", network.priceFeedServer.GetIPAddress(), network.priceFeedServer.GetHTTPPort())
 	// Request data from the Oracle smart contract, starting a job.
-	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
+	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId, priceFeedUrl)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
 	}
@@ -208,7 +221,7 @@ func (network *ChainlinkNetwork) RequestData() error {
 		time.Sleep(waitForJobCompletionTimeBetweenPolls)
 		runs, err := network.chainlinkOracleService.GetRuns()
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting runs data from the Oracle service.")
+			return stacktrace.Propagate(err, "An error occurred getting data about job runs from the Oracle service.")
 		}
 		for _, run := range(runs) {
 			// If the Oracle has a completed run with the same jobId as the priceFeed, job is complete.
@@ -217,6 +230,9 @@ func (network *ChainlinkNetwork) RequestData() error {
 			}
 		}
 		numPolls += 1
+	}
+	if !jobCompleted {
+		return stacktrace.NewError("Oracle job %v failed.", network.priceFeedJobId)
 	}
 	return nil
 }
@@ -290,6 +306,20 @@ func (network *ChainlinkNetwork) GetLinkContractAddress() string {
 
 func (network *ChainlinkNetwork) GetChainlinkOracle() *chainlink_oracle.ChainlinkOracleService {
 	return network.chainlinkOracleService
+}
+
+func (network *ChainlinkNetwork) AddPriceFeedServer() error {
+	initializer := price_feed_server.NewPriceFeedServerInitializer(network.priceFeedServerImage)
+	uncastedPriceFeedServer, checker, err := network.networkCtx.AddService(priceFeedServerId, initializer)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the price feed server.")
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for the price feed server to start")
+	}
+	castedPriceFeedServer := uncastedPriceFeedServer.(*price_feed_server.PriceFeedServer)
+	network.priceFeedServer = castedPriceFeedServer
+	return nil
 }
 
 func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {

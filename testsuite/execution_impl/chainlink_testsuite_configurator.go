@@ -40,7 +40,7 @@ func (t ChainlinkTestsuiteConfigurator) ParseParamsAndCreateSuite(paramsJsonStr 
 	}
 
 	suite := testsuite_impl.NewChainlinkTestsuite(args.GethServiceImage, args.ChainlinkContractDeployerImage,
-		args.ChainlinkOracleImage, args.PostgresImage)
+		args.ChainlinkOracleImage, args.PostgresImage, args.PriceFeedServerImage)
 	return suite, nil
 }
 

@@ -30,6 +30,7 @@ custom_params_json='{
     "chainlinkContractDeployerImage": "kurtosistech/chainlink-contract-deployer:latest",
     "chainlinkOracleImage": "smartcontract/chainlink:0.10.2",
     "postgresImage": "postgres:13.2",
+    "priceFeedServerImage": "kurtosistech/chainlink-price-feed-server:latest",
     "isKurtosisCoreDevMode": false
 }'
 # >>>>>>>> Add custom testsuite parameters here <<<<<<<<<<<<<

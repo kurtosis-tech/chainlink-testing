@@ -10,15 +10,17 @@ type ChainlinkTestsuite struct {
 	chainlinkContractDeployerImage string
 	chainlinkOracleImage string
 	postgresImage string
+	priceFeedServerImage string
 }
 
 func NewChainlinkTestsuite(gethServiceImage string, chainlinkContractDeployerImage string,
-	chainlinkOracleImage string, postgresImage string) *ChainlinkTestsuite {
+	chainlinkOracleImage string, postgresImage string, priceFeedServerImage string) *ChainlinkTestsuite {
 	return &ChainlinkTestsuite{
 		gethServiceImage: gethServiceImage,
 		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
 		chainlinkOracleImage: chainlinkOracleImage,
 		postgresImage: postgresImage,
+		priceFeedServerImage: priceFeedServerImage,
 	}
 }
 
@@ -28,7 +30,8 @@ func (suite ChainlinkTestsuite) GetTests() map[string]testsuite.Test {
 			suite.gethServiceImage,
 			suite.chainlinkContractDeployerImage,
 			suite.chainlinkOracleImage,
-			suite.postgresImage,),
+			suite.postgresImage,
+			suite.priceFeedServerImage,),
 	}
 	return tests
 }

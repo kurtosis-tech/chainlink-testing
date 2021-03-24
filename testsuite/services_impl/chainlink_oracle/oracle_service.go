@@ -215,7 +215,7 @@ func generateJobSpec(oracleContractAddress string) string {
 		  ],
 		  "tasks": [
 				{
-				  "type": "HttpGet"
+				  "type": "HttpGetWithUnrestrictedNetworkAccess"
 				},
 				{
 				  "type": "JsonParse"
@@ -231,13 +231,6 @@ func generateJobSpec(oracleContractAddress string) string {
 				}
 		  ]
 		}`, oracleContractAddress)
-
-		/*
-			Operator Type that got removed because EthTx finalization is not working: ,
-				{
-				  "type": "EthTx"
-				}
-		 */
 }
 
 /*

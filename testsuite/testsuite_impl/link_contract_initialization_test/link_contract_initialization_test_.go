@@ -14,7 +14,7 @@ const (
 	numberOfExtraNodes = 2
 
 	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
-	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.us-east-1.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
+	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
 )
 
 type LinkContractInitializationTest struct {
@@ -22,16 +22,18 @@ type LinkContractInitializationTest struct {
 	chainlinkContractDeployerImage string
 	chainlinkOracleImage string
 	postgresImage string
+	priceFeedServerImage string
 	validatorIds []services.ServiceID
 }
 
 func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContractDeployerImage string,
-	chainlinkOracleImage string, postgresImage string) *LinkContractInitializationTest {
+	chainlinkOracleImage string, postgresImage string, priceFeedServerImage string) *LinkContractInitializationTest {
 	return &LinkContractInitializationTest{
 		gethServiceImage: gethServiceImage,
 		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
 		chainlinkOracleImage: chainlinkOracleImage,
 		postgresImage: postgresImage,
+		priceFeedServerImage: priceFeedServerImage,
 		validatorIds: []services.ServiceID{},
 	}
 }
@@ -42,11 +44,17 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		test.gethServiceImage,
 		test.chainlinkContractDeployerImage,
 		test.postgresImage,
-		test.chainlinkOracleImage)
+		test.chainlinkOracleImage,
+		test.priceFeedServerImage)
 
 	err := chainlinkNetwork.AddPostgres()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding postgres to the network.")
+	}
+
+	err = chainlinkNetwork.AddPriceFeedServer()
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Error adding the price feed server to the network.")
 	}
 
 	err = chainlinkNetwork.AddBootstrapper()
