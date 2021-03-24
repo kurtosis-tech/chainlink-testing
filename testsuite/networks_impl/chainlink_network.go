@@ -170,20 +170,20 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 }
 
 /*
-	Runs scripts on the contract deployer container which request genesis from the Oracle.
+	Runs scripts on the contract deployer container which request data from the Oracle.
  */
 func (network *ChainlinkNetwork) RequestData() error {
 	if network.chainlinkOracleService == nil {
-		return stacktrace.NewError("Tried to request genesis before deploying the oracle service.")
+		return stacktrace.NewError("Tried to request data before deploying the oracle service.")
 	}
 	if network.oracleContractAddress == "" {
-		return stacktrace.NewError("Tried to request genesis before deploying the oracle contract.")
+		return stacktrace.NewError("Tried to request data before deploying the oracle contract.")
 	}
 	if network.linkContractDeployerService == nil {
-		return stacktrace.NewError("Tried to request genesis before deploying the link contract deployer service.")
+		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
 	}
 	if network.priceFeedServer == nil {
-		return stacktrace.NewError("Tried to request genesis before deploying the in-network price feed server service.")
+		return stacktrace.NewError("Tried to request data before deploying the in-network price feed server service.")
 	}
 	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
 	if err != nil {
@@ -209,10 +209,10 @@ func (network *ChainlinkNetwork) RequestData() error {
 	logrus.Infof("Calling the Oracle contract to run job %v.", network.priceFeedJobId)
 
 	priceFeedUrl := fmt.Sprintf("http://%v:%v/", network.priceFeedServer.GetIPAddress(), network.priceFeedServer.GetHTTPPort())
-	// Request genesis from the Oracle smart contract, starting a job.
+	// Request data from the Oracle smart contract, starting a job.
 	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId, priceFeedUrl)
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred requesting genesis from the Oracle contract on-chain.")
+		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
 	}
 	// Poll to see if the Oracle job has completed.
 	numPolls := 0
@@ -221,7 +221,7 @@ func (network *ChainlinkNetwork) RequestData() error {
 		time.Sleep(waitForJobCompletionTimeBetweenPolls)
 		runs, err := network.chainlinkOracleService.GetRuns()
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting runs genesis from the Oracle service.")
+			return stacktrace.Propagate(err, "An error occurred getting data about job runs from the Oracle service.")
 		}
 		for _, run := range(runs) {
 			// If the Oracle has a completed run with the same jobId as the priceFeed, job is complete.
