@@ -14,7 +14,7 @@ const (
 	numberOfExtraNodes = 2
 
 	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
-	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.us-east-1.amazonaws.com/client-geth_artifacts/chainlink/geth-data-dir.tgz"
+	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
 )
 
 type LinkContractInitializationTest struct {

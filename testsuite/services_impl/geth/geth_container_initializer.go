@@ -25,7 +25,6 @@ const (
 	targetGasLimit = 10000000
 
 	FirstFundedAddress  = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
-	SecondFundedAddress = "0x6f75c1925ef6d0c9a23fba6e4b889c52dd9d7f74"
 
 	// The geth node opens a socket for IPC communication in the data directory.
 	// This socket opening does not work on mounted filesystems, so runtime data directory needs to be off the mount.
