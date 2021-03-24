@@ -13,7 +13,6 @@ const (
 	migrationConfigurationFileName = "truffle-config.js"
 	defaultTruffleConfigHost = "127.0.0.1"
 	devNetworkId = "cldev"
-	priceFeedUrl = "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD"
 
 	contractAddressSplitter   = "contract address:"
 	addressContentSplitter    = "\n"
@@ -143,7 +142,7 @@ func (deployer ChainlinkContractDeployerService) SetFulfillmentPermissions(gethS
 	return nil
 }
 
-func (deployer ChainlinkContractDeployerService) RunRequestDataScript(oracleContractAddress string, jobId string) error {
+func (deployer ChainlinkContractDeployerService) RunRequestDataScript(oracleContractAddress string, jobId string, priceFeedUrl string) error {
 	requestDataCommand := []string{
 		"/bin/sh",
 		"-c",

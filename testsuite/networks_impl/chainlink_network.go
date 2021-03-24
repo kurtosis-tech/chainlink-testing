@@ -1,6 +1,7 @@
 package networks_impl
 
 import (
+	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
@@ -180,6 +181,9 @@ func (network *ChainlinkNetwork) RequestData() error {
 	if network.linkContractDeployerService == nil {
 		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
 	}
+	if network.priceFeedServer == nil {
+		return stacktrace.NewError("Tried to request data before deploying the in-network price feed server service.")
+	}
 	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
 	if err != nil {
 		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
@@ -202,8 +206,10 @@ func (network *ChainlinkNetwork) RequestData() error {
 	}
 
 	logrus.Infof("Calling the Oracle contract to run job %v.", network.priceFeedJobId)
+
+	priceFeedUrl := fmt.Sprintf("http://%v:%v/", network.priceFeedServer.GetIPAddress(), network.priceFeedServer.GetHTTPPort())
 	// Request data from the Oracle smart contract, starting a job.
-	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId)
+	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId, priceFeedUrl)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
 	}
