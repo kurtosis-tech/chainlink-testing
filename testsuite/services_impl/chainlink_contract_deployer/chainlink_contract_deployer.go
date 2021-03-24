@@ -13,6 +13,7 @@ const (
 	migrationConfigurationFileName = "truffle-config.js"
 	defaultTruffleConfigHost = "127.0.0.1"
 	devNetworkId = "cldev"
+	priceFeedUrl = "https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=USD"
 
 	contractAddressSplitter   = "contract address:"
 	addressContentSplitter    = "\n"
@@ -146,8 +147,11 @@ func (deployer ChainlinkContractDeployerService) RunRequestDataScript(oracleCont
 	requestDataCommand := []string{
 		"/bin/sh",
 		"-c",
-		fmt.Sprintf("export TRUFFLE_CL_BOX_ORACLE_ADDRESS=%v && export TRUFFLE_CL_BOX_JOB_ID=%v && npx truffle exec scripts/request-data.js --network %v",
-			oracleContractAddress, jobId, devNetworkId),
+		fmt.Sprintf("export TRUFFLE_CL_BOX_ORACLE_ADDRESS=%v && " +
+			"export TRUFFLE_CL_BOX_JOB_ID=%v && " +
+			"export TRUFFLE_CL_BOX_URL=%v && " +
+			"npx truffle exec scripts/request-data.js --network %v",
+			oracleContractAddress, jobId, priceFeedUrl, devNetworkId),
 	}
 	// We don't check the error code here because the fund-contract script from Chainlink
 	// erroneously reports failures, see: https://github.com/smartcontractkit/box/issues/63
