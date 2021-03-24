@@ -7,6 +7,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_oracle"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/price_feed_server"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"strconv"
@@ -19,6 +20,7 @@ const (
 	jobCompletedStatus string				  = "completed"
 	linkContractDeployerId services.ServiceID = "link-contract-deployer"
 	postgresId services.ServiceID = "postgres"
+	priceFeedServerId services.ServiceID = "price-feed-server"
 	chainlinkOracleId services.ServiceID = "chainlink-oracle"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
@@ -48,11 +50,14 @@ type ChainlinkNetwork struct {
 	postgresService             *postgres.PostgresService
 	chainlinkOracleImage        string
 	chainlinkOracleService      *chainlink_oracle.ChainlinkOracleService
+	priceFeedServerImage		string
+	priceFeedServer				*price_feed_server.PriceFeedServer
 	priceFeedJobId				string
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
-	gethServiceImage string, linkContractDeployerImage string, postgresImage string, chainlinkOracleImage string) *ChainlinkNetwork {
+	gethServiceImage string, linkContractDeployerImage string, postgresImage string,
+	chainlinkOracleImage string, priceFeedServerImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
 		networkCtx:                networkCtx,
 		gethDataDirArtifactId:     gethDataDirArtifactId,
@@ -64,6 +69,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		linkContractDeployerImage: linkContractDeployerImage,
 		postgresImage:             postgresImage,
 		chainlinkOracleImage:      chainlinkOracleImage,
+		priceFeedServerImage:	   priceFeedServerImage,
 	}
 }
 
@@ -290,6 +296,20 @@ func (network *ChainlinkNetwork) GetLinkContractAddress() string {
 
 func (network *ChainlinkNetwork) GetChainlinkOracle() *chainlink_oracle.ChainlinkOracleService {
 	return network.chainlinkOracleService
+}
+
+func (network *ChainlinkNetwork) AddPriceFeedServer() error {
+	initializer := price_feed_server.NewPriceFeedServerInitializer(network.priceFeedServerImage)
+	uncastedPriceFeedServer, checker, err := network.networkCtx.AddService(priceFeedServerId, initializer)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the price feed server.")
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for the price feed server to start")
+	}
+	castedPriceFeedServer := uncastedPriceFeedServer.(price_feed_server.PriceFeedServer)
+	network.priceFeedServer = &castedPriceFeedServer
+	return nil
 }
 
 func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {

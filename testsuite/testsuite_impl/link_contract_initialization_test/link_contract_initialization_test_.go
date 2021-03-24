@@ -22,16 +22,18 @@ type LinkContractInitializationTest struct {
 	chainlinkContractDeployerImage string
 	chainlinkOracleImage string
 	postgresImage string
+	priceFeedServerImage string
 	validatorIds []services.ServiceID
 }
 
 func NewLinkContractInitializationTest(gethServiceImage string, chainlinkContractDeployerImage string,
-	chainlinkOracleImage string, postgresImage string) *LinkContractInitializationTest {
+	chainlinkOracleImage string, postgresImage string, priceFeedServerImage string) *LinkContractInitializationTest {
 	return &LinkContractInitializationTest{
 		gethServiceImage: gethServiceImage,
 		chainlinkContractDeployerImage: chainlinkContractDeployerImage,
 		chainlinkOracleImage: chainlinkOracleImage,
 		postgresImage: postgresImage,
+		priceFeedServerImage: priceFeedServerImage,
 		validatorIds: []services.ServiceID{},
 	}
 }
@@ -42,7 +44,8 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		test.gethServiceImage,
 		test.chainlinkContractDeployerImage,
 		test.postgresImage,
-		test.chainlinkOracleImage)
+		test.chainlinkOracleImage,
+		test.priceFeedServerImage)
 
 	err := chainlinkNetwork.AddPostgres()
 	if err != nil {
