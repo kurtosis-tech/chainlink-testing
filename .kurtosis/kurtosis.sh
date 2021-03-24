@@ -184,7 +184,7 @@ else
     echo "Successfully pulled latest version of API image"
 fi
 
-# Kurtosis needs a Docker volume to store its execution genesis in
+# Kurtosis needs a Docker volume to store its execution data in
 # To learn more about volumes, see: https://docs.docker.com/storage/volumes/
 sanitized_image="$(echo "${test_suite_image}" | sed 's/[^a-zA-Z0-9_.-]/_/g')"
 suite_execution_volume="$(date +%Y-%m-%dT%H.%M.%S)_${sanitized_image}"
@@ -207,7 +207,7 @@ docker run \
     `#  the container expects the Kurtosis directory to be bind-mounted at the special "/kurtosis" path` \
     --mount "type=bind,source=${KURTOSIS_DIRPATH},target=/kurtosis" \
     \
-    `# The Kurtosis initializer image requires the volume for storing suite execution genesis to be mounted at the special "/suite-execution" path` \
+    `# The Kurtosis initializer image requires the volume for storing suite execution data to be mounted at the special "/suite-execution" path` \
     --mount "type=volume,source=${suite_execution_volume},target=/suite-execution" \
     \
     `# Keep these sorted alphabetically` \
