@@ -20,9 +20,6 @@ const (
 	oracleContractSplitter      = "Deploying 'Oracle'\n"
 	myContractSplitter      = "Deploying 'MyContract'\n"
 	setOracleFulfillmentPermissionsPath = "ethers_js_scripts/setOracleFulfillmentPermissions.js"
-
-	// TODO TODO TODO This is duplicated - refactor so that this is shared with geth service
-	testVolumeMountpoint = geth.TestVolumeMountpoint
 )
 
 type ChainlinkContractDeployerService struct {

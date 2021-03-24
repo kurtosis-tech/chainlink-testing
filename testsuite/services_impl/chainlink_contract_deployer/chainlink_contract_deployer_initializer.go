@@ -3,6 +3,7 @@ package chainlink_contract_deployer
 import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"os"
 )
 
@@ -46,7 +47,7 @@ func (initializer ChainlinkContractDeployerInitializer) GetFilesArtifactMountpoi
 }
 
 func (initializer ChainlinkContractDeployerInitializer) GetTestVolumeMountpoint() string {
-	return testVolumeMountpoint
+	return geth.TestVolumeMountpoint
 }
 
 func (initializer ChainlinkContractDeployerInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
