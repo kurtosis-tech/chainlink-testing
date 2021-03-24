@@ -13,8 +13,8 @@ import (
 const (
 	numberOfExtraNodes = 2
 
-	gethDataDirArtifactId  services.FilesArtifactID = "geth-genesis-dir"
-	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.amazonaws.com/client-artifacts/chainlink/geth-genesis-dir.tgz"
+	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
+	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
 )
 
 type LinkContractInitializationTest struct {
