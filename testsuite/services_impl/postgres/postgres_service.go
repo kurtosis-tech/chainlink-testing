@@ -65,7 +65,10 @@ func (postgresService PostgresService) IsAvailable() bool {
 		if err := db.Ping(); err != nil {
 			return false
 		}
-		time.Sleep(timeBetweenPings)
+		// Minor optimization: skip the last sleep if we're on the last iteration
+		if i < numSuccessfulPingsForAvailability - 1 {
+			time.Sleep(timeBetweenPings)
+		}
 	}
 	return true
 }

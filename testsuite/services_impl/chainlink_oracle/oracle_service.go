@@ -149,39 +149,52 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 	}
 
 	// Get transmitter key
-	/*
-	url := chainlinkOracleService.getApiRequestUrl(fmt.Sprintf(
-		"%v/%v",
-		keysEndpoint,
-		ethKeyEndpointSuffix))
-	jobSpecsResponse, err := client.Get(url)
+	ethAddrUrl := chainlinkOracleService.getApiRequestUrl(
+		fmt.Sprintf("%v/%v", keysEndpoint, ethKeyEndpointSuffix),
+	)
+	ethAddrResp, err := client.Get(ethAddrUrl)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Failed to get Ethereum account info from oracle")
 	}
 	ethereumKeys := new(OracleEthereumKeysResponse)
-	err = parseAndLogResponse(jobSpecsResponse, ethereumKeys)
+	err = parseAndLogResponse(ethAddrResp, ethereumKeys)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Failed to parse Ethereum account info response")
 	}
-	// TODO which key(s) do we use??
 
 	// Get P2P ID
-	peerToPeerIdUrl := chainlinkOracleService.getApiRequestUrl(fmt.Sprintf("%v/%v", keysEndpoint, peerToPeerIdEndpointSuffix))
+	peerToPeerIdUrl := chainlinkOracleService.getApiRequestUrl(
+		fmt.Sprintf("%v/%v", keysEndpoint, peerToPeerIdEndpointSuffix),
+	)
 	peerToPeerIdResponse, err := client.Get(peerToPeerIdUrl)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Failed to get peer-to-peer ID from oracle")
 	}
-	logrus.Debugf("Peer-to-peer ID response: %v", peerToPeerIdResponse)
-
-	// TODO which response object should we use???
-	ethereumKeys := new(OracleEthereumKeysResponse)
-	err = parseAndLogResponse(jobSpecsResponse, ethereumKeys)
+	// TODO DEBUGGING REMOVE
+	defer peerToPeerIdResponse.Body.Close()
+	peerToPeerIdResponseBodyBytes, err := ioutil.ReadAll(peerToPeerIdResponse.Body)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to parse Ethereum account info response")
+		return "", stacktrace.Propagate(err, "An error occurred reading the peer-to-peer ID response body bytes")
 	}
+	logrus.Debugf("Peer-to-peer ID response body: %v", string(peerToPeerIdResponseBodyBytes))
+	// TODO PARSE THE RESPONSE
 
-	// TODO get the key bundle ID
-	 */
+	// Get OCR key bundle ID
+	ocrKeyUrl := chainlinkOracleService.getApiRequestUrl(
+		fmt.Sprintf("%v/%v", keysEndpoint, ocrKeyEndpointSuffix),
+	)
+	ocrKeyResponse, err := client.Get(ocrKeyUrl)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "Failed to get OCR key bundle ID from oracle")
+	}
+	// TODO DEBUGGING REMOVE
+	defer ocrKeyResponse.Body.Close()
+	ocrKeyResponseBodyBytes, err := ioutil.ReadAll(ocrKeyResponse.Body)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "An error occurred reading the OCR key bundle ID response body bytes")
+	}
+	logrus.Debugf("OCR key bundle ID response body: %v", string(ocrKeyResponseBodyBytes))
+	// TODO PARSE THE RESPONSE
 
 	jobSpecJsonStr := generateJobSpec(oracleContractAddress)
 	jsonByteArray := []byte(jobSpecJsonStr)
@@ -349,13 +362,13 @@ func parseAndLogResponse(resp *http.Response, targetStruct interface{}) error{
 		return stacktrace.Propagate(err, "Error parsing Oracle response into bytes.")
 	}
 	bodyString := string(bodyBytes)
-	logrus.Debugf("Response from Oracle: %v", bodyString)
+	logrus.Debugf("Raw response from oracle: %v", bodyString)
 
 
 	err = json.NewDecoder(&teeBuf).Decode(targetStruct)
 	if err != nil {
 		return stacktrace.Propagate(err, "Error parsing Oracle response into a struct.")
 	}
-	logrus.Debugf("Response from Chainlink Oracle: %+v", targetStruct)
+	logrus.Debugf("JSON-parsed response from oracle: %+v", targetStruct)
 	return nil
 }

@@ -3,13 +3,14 @@ package postgres
 import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
-	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"os"
 )
 
 const (
 	entrypointScriptPath = "/docker-entrypoint.sh"
 	postgresSuperUserPasswordEnvVar = "POSTGRES_PASSWORD"
+
+	testVolumeMountpoint = "/test-volume"
 )
 
 type PostgresContainerInitializer struct {
@@ -53,7 +54,7 @@ func (initializer PostgresContainerInitializer) GetEnvironmentVariableOverrides(
 }
 
 func (initializer PostgresContainerInitializer) GetTestVolumeMountpoint() string {
-	return geth.TestVolumeMountpoint
+	return testVolumeMountpoint
 }
 
 func (initializer PostgresContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
