@@ -22,6 +22,8 @@ const (
 	setOracleFulfillmentPermissionsPath = "ethers_js_scripts/setOracleFulfillmentPermissions.js"
 )
 
+// TODO Rename to something that reflects the actual purpose - this is actually a generic Ethereum chain-manipulating
+//  Docker image
 type ChainlinkContractDeployerService struct {
 	serviceCtx *services.ServiceContext
 	isContractDeployed bool

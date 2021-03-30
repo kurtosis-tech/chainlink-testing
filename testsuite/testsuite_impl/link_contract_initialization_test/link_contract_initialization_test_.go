@@ -130,7 +130,7 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	}
 
 	logrus.Infof("Configuring and setting a JobSpec on the Oracle to access an example price feed.")
-	err = chainlinkNetwork.DeployOracleJob()
+	err = chainlinkNetwork.DeployOracleJobs()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Error deploying Oracle job."))
 	}

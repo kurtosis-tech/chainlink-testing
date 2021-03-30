@@ -16,13 +16,13 @@ import (
 )
 
 const (
-	ethereumBootstrapperId services.ServiceID = "ethereum-bootstrapper"
-	gethServiceIdPrefix                       = "ethereum-node-"
-	jobCompletedStatus string				  = "completed"
-	linkContractDeployerId services.ServiceID = "link-contract-deployer"
-	postgresId services.ServiceID = "postgres"
-	priceFeedServerId services.ServiceID = "price-feed-server"
-	chainlinkOracleId services.ServiceID = "chainlink-oracle"
+	ethereumBootstrapperId  services.ServiceID = "ethereum-bootstrapper"
+	gethServiceIdPrefix                        = "ethereum-node-"
+	jobCompletedStatus      string             = "completed"
+	linkContractDeployerId  services.ServiceID = "link-contract-deployer"
+	postgresIdPrefix        services.ServiceID = "postgres-"
+	priceFeedServerId       services.ServiceID = "price-feed-server"
+	chainlinkOracleIdPrefix services.ServiceID = "chainlink-oracle-"
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
@@ -34,6 +34,10 @@ const (
 	waitForJobCompletionPolls = 30
 
 	oracleEthPreFundingAmount = "10000000000000000000000000000"
+
+	// Number of Oracle nodes that will be deployed on the network (with the first being a bootstrapper)
+	// TODO Up to 5
+	numOracles = 1
 )
 
 type ChainlinkNetwork struct {
@@ -48,9 +52,8 @@ type ChainlinkNetwork struct {
 	linkContractDeployerImage   string
 	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
 	postgresImage               string
-	postgresService             *postgres.PostgresService
 	chainlinkOracleImage        string
-	chainlinkOracleService      *chainlink_oracle.ChainlinkOracleService
+	chainlinkOracleServices     []*chainlink_oracle.ChainlinkOracleService
 	priceFeedServerImage		string
 	priceFeedServer				*price_feed_server.PriceFeedServer
 	priceFeedJobId				string
@@ -60,17 +63,22 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 	gethServiceImage string, linkContractDeployerImage string, postgresImage string,
 	chainlinkOracleImage string, priceFeedServerImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
-		networkCtx:                networkCtx,
-		gethDataDirArtifactId:     gethDataDirArtifactId,
-		gethServiceImage:          gethServiceImage,
-		gethBootsrapperService:    nil,
-		gethServices:              map[services.ServiceID]*geth.GethService{},
-		nextGethServiceId:         0,
-		linkContractAddress:       "",
-		linkContractDeployerImage: linkContractDeployerImage,
-		postgresImage:             postgresImage,
-		chainlinkOracleImage:      chainlinkOracleImage,
-		priceFeedServerImage:	   priceFeedServerImage,
+		networkCtx:                  networkCtx,
+		gethDataDirArtifactId:       gethDataDirArtifactId,
+		gethServiceImage:            gethServiceImage,
+		gethBootsrapperService:      nil,
+		gethServices:                map[services.ServiceID]*geth.GethService{},
+		nextGethServiceId:           0,
+		linkContractAddress:         "",
+		oracleContractAddress:       "",
+		linkContractDeployerImage:   linkContractDeployerImage,
+		linkContractDeployerService: nil,
+		postgresImage:               postgresImage,
+		chainlinkOracleImage:        chainlinkOracleImage,
+		chainlinkOracleServices:     []*chainlink_oracle.ChainlinkOracleService{},
+		priceFeedServerImage:        priceFeedServerImage,
+		priceFeedServer:             nil,
+		priceFeedJobId:              "",
 	}
 }
 
@@ -101,12 +109,16 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	return nil
 }
 
-func (network *ChainlinkNetwork) DeployOracleJob() error {
+func (network *ChainlinkNetwork) DeployOracleJobs() error {
 	if network.oracleContractAddress == "" {
 		return stacktrace.NewError("Can not deploy Oracle job because Oracle contract has not yet been deployed.")
 	}
-	oracleService := network.GetChainlinkOracle()
-	jobId, err := oracleService.SetJobSpec(network.oracleContractAddress)
+	if len(network.chainlinkOracleServices) == 0 {
+		return stacktrace.NewError("Cannot deploy oracle jobs because oracle services are not yet deployed")
+	}
+
+	// TODO handle multiple
+	jobId, err := network.chainlinkOracleServices[0].SetJobSpec(network.oracleContractAddress)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to set job spec.")
 	}
@@ -129,10 +141,11 @@ func (network *ChainlinkNetwork) FundLinkWallet() error {
 }
 
 func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
-	if network.chainlinkOracleService == nil {
-		return stacktrace.NewError("Tried to fund Oracle eth accounts before deploying Oracle.")
+	if len(network.chainlinkOracleServices) == 0 {
+		return stacktrace.NewError("Tried to fund oracle ETH accounts before deploying any oracles")
 	}
-	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
+	// TODO handle multiple
+	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthAccounts()
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
 	}
@@ -255,44 +268,48 @@ func (network *ChainlinkNetwork) AddBootstrapper() error {
 	return nil
 }
 
-func (network *ChainlinkNetwork) AddPostgres() error {
-	if network.postgresService != nil {
-		return stacktrace.NewError("Cannot add postgres service to network; postgres service already exists!")
-	}
-	initializer := postgres.NewPostgresContainerInitializer(network.postgresImage)
-	uncastedPostgres, checker, err := network.networkCtx.AddService(postgresId, initializer)
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred adding the postgres service")
-	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return stacktrace.Propagate(err, "An error occurred waiting for the postgres service to start")
-	}
-	castedPostgres := uncastedPostgres.(*postgres.PostgresService)
-	network.postgresService = castedPostgres
-	return nil
-}
-
-func (network *ChainlinkNetwork) AddOracleService() error {
+func (network *ChainlinkNetwork) AddOracleServices() error {
 	if network.linkContractAddress == "" {
-		return stacktrace.NewError("Tried to add an oracle service, but the $LINK token contract has not yet been deployed.")
+		return stacktrace.NewError("Cannot add oracle services; the $LINK token contract has not yet been deployed.")
 	}
 	if network.oracleContractAddress == "" {
-		return stacktrace.NewError("Tried to add an oracle service, but the Oracle contract has not yet been deployed.")
+		return stacktrace.NewError("Cannot add oracle services; the Oracle contract has not yet been deployed.")
 	}
-	if network.chainlinkOracleService != nil {
-		return stacktrace.NewError("Tried to add an oracle service, but one has already been added!")
+	if len(network.chainlinkOracleServices) > 0 {
+		return stacktrace.NewError("Cannot add oracle services to the network; oracle services already exist!")
 	}
-	initializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(network.chainlinkOracleImage,
-		network.linkContractAddress, network.oracleContractAddress, network.gethBootsrapperService, network.postgresService)
-	uncastedChainlinkOracle, checker, err := network.networkCtx.AddService(chainlinkOracleId, initializer)
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred adding the Chainlink Oracle service.")
+
+	postgresInitializer := postgres.NewPostgresContainerInitializer(network.postgresImage)
+	for i := 0; i < numOracles; i++ {
+		postgresServiceId := services.ServiceID(fmt.Sprintf("%v%v", postgresIdPrefix, i))
+		uncastedPostgres, checker, err := network.networkCtx.AddService(postgresServiceId, postgresInitializer)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred adding postgres service with ID '%v'", postgresServiceId)
+		}
+		if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+			return stacktrace.Propagate(err, "An error occurred waiting for postgres service with ID '%v' to start", postgresServiceId)
+		}
+		castedPostgres, ok := uncastedPostgres.(*postgres.PostgresService)
+		if !ok {
+			return stacktrace.NewError("An error occurred downcasting postgres service with ID '%v' to the correct type", postgresServiceId)
+		}
+
+		oracleInitializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(network.chainlinkOracleImage,
+			network.linkContractAddress, network.oracleContractAddress, network.gethBootsrapperService, castedPostgres)
+		oracleServiceId := services.ServiceID(fmt.Sprintf("%v%v", chainlinkOracleIdPrefix, i))
+		uncastedChainlinkOracle, checker, err := network.networkCtx.AddService(oracleServiceId, oracleInitializer)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred adding oracle service with ID '%v'", oracleServiceId)
+		}
+		if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+			return stacktrace.Propagate(err, "An error occurred waiting for oracle service with ID '%v' to start up", oracleServiceId)
+		}
+		castedChainlinkOracle, ok := uncastedChainlinkOracle.(*chainlink_oracle.ChainlinkOracleService)
+		if !ok {
+			return stacktrace.NewError("Could not downcast oracle service to correct type")
+		}
+		network.chainlinkOracleServices = append(network.chainlinkOracleServices, castedChainlinkOracle)
 	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return stacktrace.Propagate(err, "An error occurred waiting for an Oracle service to start up.")
-	}
-	castedChainlinkOracle := uncastedChainlinkOracle.(*chainlink_oracle.ChainlinkOracleService)
-	network.chainlinkOracleService = castedChainlinkOracle
 	return nil
 }
 
@@ -304,8 +321,8 @@ func (network *ChainlinkNetwork) GetLinkContractAddress() string {
 	return network.linkContractAddress
 }
 
-func (network *ChainlinkNetwork) GetChainlinkOracle() *chainlink_oracle.ChainlinkOracleService {
-	return network.chainlinkOracleService
+func (network *ChainlinkNetwork) GetChainlinkOracles() []*chainlink_oracle.ChainlinkOracleService {
+	return network.chainlinkOracleServices
 }
 
 func (network *ChainlinkNetwork) AddPriceFeedServer() error {
