@@ -35,7 +35,7 @@ const (
 
 	oracleEthPreFundingAmount = "10000000000000000000000000000"
 
-	// Number of Oracle nodes that will be deployed on the network (with the first being a bootstrapper)
+	// Number of oracle nodes that will be deployed on the network (with the first being a bootstrapper)
 	// TODO Up to 5
 	numOracles = 1
 )
@@ -111,7 +111,7 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 
 func (network *ChainlinkNetwork) DeployOracleJobs() error {
 	if network.oracleContractAddress == "" {
-		return stacktrace.NewError("Can not deploy Oracle job because Oracle contract has not yet been deployed.")
+		return stacktrace.NewError("Can not deploy oracle jobs because oracle contract has not yet been deployed.")
 	}
 	if len(network.chainlinkOracleServices) == 0 {
 		return stacktrace.NewError("Cannot deploy oracle jobs because oracle services are not yet deployed")
@@ -123,7 +123,7 @@ func (network *ChainlinkNetwork) DeployOracleJobs() error {
 		return stacktrace.Propagate(err, "Failed to set job spec.")
 	}
 	network.priceFeedJobId = jobId
-	logrus.Debugf("Information for running smart contract: Oracle Address: %v, JobId: %v",
+	logrus.Debugf("Information for running smart contract: oracle Address: %v, JobId: %v",
 		network.oracleContractAddress,
 		network.priceFeedJobId)
 	return nil
@@ -147,7 +147,7 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	// TODO handle multiple
 	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthAccounts()
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
+		return stacktrace.Propagate(err, "An error occurred getting the oracle's ethereum accounts")
 	}
 	for _, ethAccount := range oracleEthAccounts {
 		toAddress := ethAccount.Attributes.Address
@@ -158,7 +158,7 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	}
 
 	/*
-		Poll for transaction finalization so that we know that the Oracle's ethereum accounts are funded.
+		Poll for transaction finalization so that we know that the oracle's ethereum accounts are funded.
 		See: https://docs.chain.link/docs/running-a-chainlink-node#start-the-chainlink-node, "you will
 		need to send some ETH to your node's address in order for it to fulfill requests".
 	 */
@@ -169,11 +169,11 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 		// TODO Handle multiple
 		oracleEthAccounts, err = network.chainlinkOracleServices[0].GetEthAccounts()
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
+			return stacktrace.Propagate(err, "An error occurred getting the oracle's ethereum accounts")
 		}
 		numPolls += 1
 
-		// Eth Accounts are considered funded if every eth account the Oracle owns is funded (has balance != 0)
+		// Eth Accounts are considered funded if every eth account the oracle owns is funded (has balance != 0)
 		allAccountsFunded := true
 		for _, account := range(oracleEthAccounts) {
 			allAccountsFunded = allAccountsFunded && (account.Attributes.EthBalance != "0")
@@ -184,7 +184,7 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 }
 
 /*
-	Runs scripts on the contract deployer container which request data from the Oracle.
+	Runs scripts on the contract deployer container which request data from the oracle.
  */
 func (network *ChainlinkNetwork) RequestData() error {
 	if len(network.chainlinkOracleServices) == 0 {
@@ -221,15 +221,15 @@ func (network *ChainlinkNetwork) RequestData() error {
 		}
 	}
 
-	logrus.Infof("Calling the Oracle contract to run job %v.", network.priceFeedJobId)
+	logrus.Infof("Calling the oracle contract to run job %v.", network.priceFeedJobId)
 
 	priceFeedUrl := fmt.Sprintf("http://%v:%v/", network.priceFeedServer.GetIPAddress(), network.priceFeedServer.GetHTTPPort())
-	// Request data from the Oracle smart contract, starting a job.
+	// Request data from the oracle smart contract, starting a job.
 	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId, priceFeedUrl)
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred requesting data from the Oracle contract on-chain.")
+		return stacktrace.Propagate(err, "An error occurred requesting data from the oracle contract on-chain.")
 	}
-	// Poll to see if the Oracle job has completed.
+	// Poll to see if the oracle job has completed.
 	numPolls := 0
 	jobCompleted := false
 	for !jobCompleted && numPolls < waitForJobCompletionPolls {
@@ -237,10 +237,10 @@ func (network *ChainlinkNetwork) RequestData() error {
 		// TODO Handle multiple
 		runs, err := network.chainlinkOracleServices[0].GetRuns()
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting data about job runs from the Oracle service.")
+			return stacktrace.Propagate(err, "An error occurred getting data about job runs from the oracle service.")
 		}
 		for _, run := range(runs) {
-			// If the Oracle has a completed run with the same jobId as the priceFeed, job is complete.
+			// If the oracle has a completed run with the same jobId as the priceFeed, job is complete.
 			if run.Attributes.JobId == network.priceFeedJobId {
 				jobCompleted = jobCompleted || run.Attributes.Status == jobCompletedStatus
 			}
@@ -276,7 +276,7 @@ func (network *ChainlinkNetwork) AddOracleServices() error {
 		return stacktrace.NewError("Cannot add oracle services; the $LINK token contract has not yet been deployed.")
 	}
 	if network.oracleContractAddress == "" {
-		return stacktrace.NewError("Cannot add oracle services; the Oracle contract has not yet been deployed.")
+		return stacktrace.NewError("Cannot add oracle services; the oracle contract has not yet been deployed.")
 	}
 	if len(network.chainlinkOracleServices) > 0 {
 		return stacktrace.NewError("Cannot add oracle services to the network; oracle services already exist!")

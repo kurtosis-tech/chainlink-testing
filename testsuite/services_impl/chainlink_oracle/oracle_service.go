@@ -20,16 +20,17 @@ import (
 const (
 	isAvailableDialTimeout = time.Second
 
-	apiVersion = "v2"
-
 	sessionsEndpoint = "sessions"
 	specsEndpoint = "v2/specs"
+
 	keysEndpoint = "v2/keys"
 	ethKeyEndpointSuffix = "eth"
 	ocrKeyEndpointSuffix = "ocr"
 	peerToPeerIdEndpointSuffix = "p2p"
 
 	runsEndpoint = "v2/runs"
+
+	jsonMimeType = "application/json"
 )
 
 type RunsResponse struct {
@@ -190,7 +191,7 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 		chainlinkOracleService.GetOperatorPort(),
 		specsEndpoint)
 
-	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonByteArray))
+	resp, err := client.Post(url, jsonMimeType, bytes.NewBuffer(jsonByteArray))
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the Oracle.")
 	}
@@ -247,7 +248,7 @@ func (chainlinkOracleService *ChainlinkOracleService) getOrCreateClientWithSessi
 		Jar:     jar,
 		Timeout: time.Second * 60,
 	}
-	_, err := client.Post(urlStr, "application/json", bytes.NewBuffer(authByteArray))
+	_, err := client.Post(urlStr, jsonMimeType, bytes.NewBuffer(authByteArray))
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Encountered an error trying to authenticate with the oracle service..")
 	}
@@ -258,10 +259,9 @@ func (chainlinkOracleService *ChainlinkOracleService) getOrCreateClientWithSessi
 
 func (chainlinkOracleService *ChainlinkOracleService) getApiRequestUrl(endpoint string) string {
 	return fmt.Sprintf(
-		"http://%v:%v/%v/%v",
+		"http://%v:%v/%v",
 		chainlinkOracleService.GetIPAddress(),
 		chainlinkOracleService.GetOperatorPort(),
-		apiVersion,
 		endpoint)
 }
 
