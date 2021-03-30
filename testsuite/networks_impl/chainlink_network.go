@@ -34,6 +34,9 @@ const (
 	waitForJobCompletionPolls = 30
 
 	oracleEthPreFundingAmount = "10000000000000000000000000000"
+
+	maxNumGethValidatorConnectednessVerifications = 3
+	timeBetweenGethValidatorConnectednessVerifications = 1 * time.Second
 )
 
 type ChainlinkNetwork struct {
@@ -352,6 +355,8 @@ func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 	for id, service := range network.gethServices {
 		allServices[id] = service
 	}
+
+	// Connect all nodes to each other
 	for nodeId, nodeGethService := range allServices {
 		for peerId, peerGethService := range allServices {
 			if nodeId == peerId {
@@ -368,6 +373,29 @@ func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 			if !ok {
 				return stacktrace.NewError("addPeer endpoint returned false on service %v, adding peer %v", nodeId, peerGethServiceEnode)
 			}
+		}
+	}
+
+	// Now check that all nodes have all other nodes as peers
+	expectedNumPeers := len(allServices) - 1
+	for nodeId, nodeGethService := range allServices {
+		seesAllPeers := false
+		numVerificationsAttempted := 0
+		for !seesAllPeers && numVerificationsAttempted < maxNumGethValidatorConnectednessVerifications {
+			peers, err := nodeGethService.GetPeers()
+			numVerificationsAttempted += 1
+			seesAllPeers = err == nil && len(peers) == expectedNumPeers
+			if !seesAllPeers {
+				time.Sleep(timeBetweenGethValidatorConnectednessVerifications)
+			}
+		}
+		if !seesAllPeers {
+			return stacktrace.NewError(
+				"Geth validator '%v' still didn't see all %v peers after %v tries with %v between tries",
+				nodeId,
+				expectedNumPeers,
+				maxNumGethValidatorConnectednessVerifications,
+				timeBetweenGethValidatorConnectednessVerifications)
 		}
 	}
 	return nil
