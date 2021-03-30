@@ -166,7 +166,8 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	numPolls := 0
 	for !ethAccountsFunded && numPolls < waitForTransactionFinalizationPolls {
 		time.Sleep(waitForTransactionFinalizationTimeBetweenPolls)
-		oracleEthAccounts, err = network.chainlinkOracleService.GetEthAccounts()
+		// TODO Handle multiple
+		oracleEthAccounts, err = network.chainlinkOracleServices[0].GetEthAccounts()
 		if err != nil {
 			return stacktrace.Propagate(err, "An error occurred getting the Oracle's ethereum accounts")
 		}
@@ -186,8 +187,8 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	Runs scripts on the contract deployer container which request data from the Oracle.
  */
 func (network *ChainlinkNetwork) RequestData() error {
-	if network.chainlinkOracleService == nil {
-		return stacktrace.NewError("Tried to request data before deploying the oracle service.")
+	if len(network.chainlinkOracleServices) == 0 {
+		return stacktrace.NewError("Tried to request data before deploying any oracle services")
 	}
 	if network.oracleContractAddress == "" {
 		return stacktrace.NewError("Tried to request data before deploying the oracle contract.")
@@ -198,7 +199,8 @@ func (network *ChainlinkNetwork) RequestData() error {
 	if network.priceFeedServer == nil {
 		return stacktrace.NewError("Tried to request data before deploying the in-network price feed server service.")
 	}
-	oracleEthAccounts, err := network.chainlinkOracleService.GetEthAccounts()
+	// TODO handle multiple
+	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthAccounts()
 	if err != nil {
 		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
 	}
@@ -232,7 +234,8 @@ func (network *ChainlinkNetwork) RequestData() error {
 	jobCompleted := false
 	for !jobCompleted && numPolls < waitForJobCompletionPolls {
 		time.Sleep(waitForJobCompletionTimeBetweenPolls)
-		runs, err := network.chainlinkOracleService.GetRuns()
+		// TODO Handle multiple
+		runs, err := network.chainlinkOracleServices[0].GetRuns()
 		if err != nil {
 			return stacktrace.Propagate(err, "An error occurred getting data about job runs from the Oracle service.")
 		}

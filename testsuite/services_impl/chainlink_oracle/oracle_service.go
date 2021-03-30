@@ -121,14 +121,24 @@ func (chainlinkOracleService *ChainlinkOracleService) GetRuns() ([]Run, error) {
 	return runsResponse.Data, nil
 }
 
-/*
 func (chainlinkOracleService *ChainlinkOracleService) GetEthAccounts() ([]OracleEthereumKey, error) {
 	client, err := chainlinkOracleService.getOrCreateClientWithSession()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
+	urlStr := chainlinkOracleService.getApiRequestUrl(fmt.Sprintf("%v/%v", keysEndpoint, ethKeyEndpointSuffix))
+	response, err := client.Get(urlStr)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Failed to get ethereum account info from Oracle.")
+	}
+	ethereumKeysResponse := new(OracleEthereumKeysResponse)
+
+	err = parseAndLogResponse(response, ethereumKeysResponse)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
+	}
+	return ethereumKeysResponse.Data, nil
 }
- */
 
 func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 		oracleContractAddress string) (jobId string, err error) {
