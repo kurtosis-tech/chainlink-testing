@@ -145,7 +145,7 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 		return stacktrace.NewError("Tried to fund oracle ETH accounts before deploying any oracles")
 	}
 	// TODO handle multiple
-	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthAccounts()
+	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthKeys()
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred getting the oracle's ethereum accounts")
 	}
@@ -167,7 +167,7 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	for !ethAccountsFunded && numPolls < waitForTransactionFinalizationPolls {
 		time.Sleep(waitForTransactionFinalizationTimeBetweenPolls)
 		// TODO Handle multiple
-		oracleEthAccounts, err = network.chainlinkOracleServices[0].GetEthAccounts()
+		oracleEthAccounts, err = network.chainlinkOracleServices[0].GetEthKeys()
 		if err != nil {
 			return stacktrace.Propagate(err, "An error occurred getting the oracle's ethereum accounts")
 		}
@@ -200,7 +200,7 @@ func (network *ChainlinkNetwork) RequestData() error {
 		return stacktrace.NewError("Tried to request data before deploying the in-network price feed server service.")
 	}
 	// TODO handle multiple
-	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthAccounts()
+	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthKeys()
 	if err != nil {
 		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
 	}

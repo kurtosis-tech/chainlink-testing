@@ -33,57 +33,6 @@ const (
 	jsonMimeType = "application/json"
 )
 
-type RunsResponse struct {
-	Data []Run `json:"data"`
-}
-
-type Run struct {
-	Type string `json:"type"`
-	Attributes RunAttributes `json:"attributes"`
-}
-
-type RunAttributes struct {
-	Id string `json:"id"`
-	JobId string `json:"jobId"`
-	Status string `json:"status"`
-	TaskRuns []TaskRun `json:"taskRuns"`
-	Initiator Initiator `json:"initiator"`
-	Payment string `json:"payment"`
-}
-
-type TaskRun struct {
-	Id string `json:"id"`
-	Status string `json:"status"`
-}
-
-type Initiator struct {
-	Id int `json:"id"`
-	JobSpecId string `json:"jobSpecId"`
-}
-
-
-type OracleEthereumKeysResponse struct {
-	Data []OracleEthereumKey `json:"data"`
-}
-
-type OracleEthereumKey struct {
-	Type string `json:"type"`
-	Attributes EthereumKeyAttributes `json:"attributes"`
-}
-
-type EthereumKeyAttributes struct {
-	Address string `json:"address"`
-	EthBalance string `json:"ethBalance"`
-	LinkBalance string `json:"linkBalance"`
-}
-
-type OracleJobInitiatedResponse struct {
-	Data OracleJobInitiatedData `json:"data"`
-}
-
-type OracleJobInitiatedData struct {
-	Id string `json:"id"`
-}
 
 type ChainlinkOracleService struct {
 	serviceCtx *services.ServiceContext
@@ -95,21 +44,21 @@ func NewChainlinkOracleService(serviceCtx *services.ServiceContext) *ChainlinkOr
 	return &ChainlinkOracleService{serviceCtx: serviceCtx}
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) GetOperatorPort() int {
+func (service *ChainlinkOracleService) GetOperatorPort() int {
 	return operatorUiPort
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) GetIPAddress() string {
-	return chainlinkOracleService.serviceCtx.GetIPAddress()
+func (service *ChainlinkOracleService) GetIPAddress() string {
+	return service.serviceCtx.GetIPAddress()
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) GetRuns() ([]Run, error) {
-	client, err := chainlinkOracleService.getOrCreateClientWithSession()
+func (service *ChainlinkOracleService) GetRuns() ([]Run, error) {
+	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
 	urlStr := fmt.Sprintf("http://%v:%v/%v",
-		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), runsEndpoint)
+		service.GetIPAddress(), service.GetOperatorPort(), runsEndpoint)
 	response, err := client.Get(urlStr)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Failed to get runs information from Oracle.")
@@ -122,34 +71,42 @@ func (chainlinkOracleService *ChainlinkOracleService) GetRuns() ([]Run, error) {
 	return runsResponse.Data, nil
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) GetEthAccounts() ([]OracleEthereumKey, error) {
-	client, err := chainlinkOracleService.getOrCreateClientWithSession()
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred getting the oracle session client")
+func (service *ChainlinkOracleService) GetEthKeys() ([]OracleEthereumKey, error) {
+	endpoint := fmt.Sprintf("%v/%v", keysEndpoint, ethKeyEndpointSuffix)
+	responseObj := new(OracleEthereumKeysResponse)
+	if err := service.makeAndParseApiGetRequest(endpoint, responseObj); err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred getting the ETH keys from the oracle API")
 	}
-	urlStr := chainlinkOracleService.getApiRequestUrl(fmt.Sprintf("%v/%v", keysEndpoint, ethKeyEndpointSuffix))
-	response, err := client.Get(urlStr)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Failed to get ethereum account info from Oracle.")
-	}
-	ethereumKeysResponse := new(OracleEthereumKeysResponse)
-
-	err = parseAndLogResponse(response, ethereumKeysResponse)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
-	}
-	return ethereumKeysResponse.Data, nil
+	return responseObj.Data, nil
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
+func (service *ChainlinkOracleService) GetPeerToPeerKeys() ([]OraclePeerToPeerKey, error) {
+	endpoint := fmt.Sprintf("%v/%v", keysEndpoint, peerToPeerIdEndpointSuffix)
+	responseObj := new(OraclePeerToPeerKeysResponse)
+	if err := service.makeAndParseApiGetRequest(endpoint, responseObj); err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred getting the P2P keys from the oracle API")
+	}
+	return responseObj.Data, nil
+}
+
+func (service *ChainlinkOracleService) GetOCRKeyBundles() ([]OracleOcrKeyBundle, error) {
+	endpoint := fmt.Sprintf("%v/%v", keysEndpoint, ocrKeyEndpointSuffix)
+	responseObj := new(OracleOcrKeyBundlesResponse)
+	if err := service.makeAndParseApiGetRequest(endpoint, responseObj); err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred getting the OCR key bundles from the oracle API")
+	}
+	return responseObj.Data, nil
+}
+
+func (service *ChainlinkOracleService) SetJobSpec(
 		oracleContractAddress string) (jobId string, err error) {
-	client, err := chainlinkOracleService.getOrCreateClientWithSession()
+	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
 
 	// Get transmitter key
-	ethAddrUrl := chainlinkOracleService.getApiRequestUrl(
+	ethAddrUrl := service.getApiRequestUrl(
 		fmt.Sprintf("%v/%v", keysEndpoint, ethKeyEndpointSuffix),
 	)
 	ethAddrResp, err := client.Get(ethAddrUrl)
@@ -163,7 +120,7 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 	}
 
 	// Get P2P ID
-	peerToPeerIdUrl := chainlinkOracleService.getApiRequestUrl(
+	peerToPeerIdUrl := service.getApiRequestUrl(
 		fmt.Sprintf("%v/%v", keysEndpoint, peerToPeerIdEndpointSuffix),
 	)
 	peerToPeerIdResponse, err := client.Get(peerToPeerIdUrl)
@@ -171,6 +128,7 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 		return "", stacktrace.Propagate(err, "Failed to get peer-to-peer ID from oracle")
 	}
 	// TODO DEBUGGING REMOVE
+	// TODO STRIP OFF "p2p_" leader from the P2P key
 	defer peerToPeerIdResponse.Body.Close()
 	peerToPeerIdResponseBodyBytes, err := ioutil.ReadAll(peerToPeerIdResponse.Body)
 	if err != nil {
@@ -180,7 +138,7 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 	// TODO PARSE THE RESPONSE
 
 	// Get OCR key bundle ID
-	ocrKeyUrl := chainlinkOracleService.getApiRequestUrl(
+	ocrKeyUrl := service.getApiRequestUrl(
 		fmt.Sprintf("%v/%v", keysEndpoint, ocrKeyEndpointSuffix),
 	)
 	ocrKeyResponse, err := client.Get(ocrKeyUrl)
@@ -200,8 +158,8 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 	jsonByteArray := []byte(jobSpecJsonStr)
 	url := fmt.Sprintf(
 		"http://%v:%v/%v",
-		chainlinkOracleService.GetIPAddress(),
-		chainlinkOracleService.GetOperatorPort(),
+		service.GetIPAddress(),
+		service.GetOperatorPort(),
 		specsEndpoint)
 
 	resp, err := client.Post(url, jsonMimeType, bytes.NewBuffer(jsonByteArray))
@@ -222,9 +180,9 @@ func (chainlinkOracleService *ChainlinkOracleService) SetJobSpec(
 //                              Service interface methods
 // ===========================================================================================
 
-func (chainlinkOracleService *ChainlinkOracleService) IsAvailable() bool {
+func (service *ChainlinkOracleService) IsAvailable() bool {
 	conn, err := net.DialTimeout("tcp",
-		net.JoinHostPort(chainlinkOracleService.GetIPAddress(), strconv.Itoa(operatorUiPort)), isAvailableDialTimeout)
+		net.JoinHostPort(service.GetIPAddress(), strconv.Itoa(operatorUiPort)), isAvailableDialTimeout)
 	if err != nil {
 		return false
 	}
@@ -241,9 +199,9 @@ func (chainlinkOracleService *ChainlinkOracleService) IsAvailable() bool {
 // ===========================================================================================
 // TODO Push this into a supplier struct, so that users don't accidentally use the uninitialized clientWithSession
 //  property on the struct
-func (chainlinkOracleService *ChainlinkOracleService) getOrCreateClientWithSession() (*http.Client, error) {
-	if chainlinkOracleService.clientWithSession != nil {
-		return chainlinkOracleService.clientWithSession, nil
+func (service *ChainlinkOracleService) getOrCreateClientWithSession() (*http.Client, error) {
+	if service.clientWithSession != nil {
+		return service.clientWithSession, nil
 	}
 
 	authJsonStr := fmt.Sprintf(
@@ -252,7 +210,7 @@ func (chainlinkOracleService *ChainlinkOracleService) getOrCreateClientWithSessi
 		oraclePassword)
 	authByteArray := []byte(authJsonStr)
 	urlStr := fmt.Sprintf("http://%v:%v/%v",
-		chainlinkOracleService.GetIPAddress(), chainlinkOracleService.GetOperatorPort(), sessionsEndpoint)
+		service.GetIPAddress(), service.GetOperatorPort(), sessionsEndpoint)
 	// Create new cookiejar for holding cookies
 	jar, _ := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
 
@@ -266,15 +224,15 @@ func (chainlinkOracleService *ChainlinkOracleService) getOrCreateClientWithSessi
 		return nil, stacktrace.Propagate(err, "Encountered an error trying to authenticate with the oracle service..")
 	}
 	logrus.Debugf("After starting sessions, cookies look like: %+v", jar)
-	chainlinkOracleService.clientWithSession = client
+	service.clientWithSession = client
 	return client, nil
 }
 
-func (chainlinkOracleService *ChainlinkOracleService) getApiRequestUrl(endpoint string) string {
+func (service *ChainlinkOracleService) getApiRequestUrl(endpoint string) string {
 	return fmt.Sprintf(
 		"http://%v:%v/%v",
-		chainlinkOracleService.GetIPAddress(),
-		chainlinkOracleService.GetOperatorPort(),
+		service.GetIPAddress(),
+		service.GetOperatorPort(),
 		endpoint)
 }
 
@@ -350,6 +308,24 @@ func generateJobSpec(
 			nodeEthTransmitterAddress)
 }
 */
+
+func (service *ChainlinkOracleService) makeAndParseApiGetRequest(apiEndpoint string, targetStruct interface{}) error {
+	client, err := service.getOrCreateClientWithSession()
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred getting the oracle session client")
+	}
+	urlStr := service.getApiRequestUrl(apiEndpoint)
+	response, err := client.Get(urlStr)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred making the get request")
+	}
+
+	err = parseAndLogResponse(response, targetStruct)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred JSON-parsing the response from the oracle API")
+	}
+	return nil
+}
 
 /*
 	Parses an HTTP response into the target struct, while also logging it as a string to help develop and debug.

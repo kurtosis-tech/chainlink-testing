@@ -150,10 +150,12 @@ func (test *LinkContractInitializationTest) GetTestConfiguration() testsuite.Tes
 }
 
 func (test *LinkContractInitializationTest) GetExecutionTimeout() time.Duration {
+	// TODO DEBUGGING
 	return 30000 * time.Second
 }
 
 func (test *LinkContractInitializationTest) GetSetupTimeout() time.Duration {
+	// TODO DEBUGGING
 	return 30000 * time.Second
 }
 
