@@ -31,6 +31,11 @@ const (
 	runsEndpoint = "v2/runs"
 
 	jsonMimeType = "application/json"
+
+
+	// Nodes will come with two ETH keys; the first one is the transmitter key and the second one is an emergency funding key
+	// See: https://chainlink-growth.slack.com/archives/C01NSF9GH6Y/p1617142577011600?thread_ts=1617139632.008300&cid=C01NSF9GH6Y
+	transmitterEthKeyIndex = 0
 )
 
 
@@ -99,62 +104,51 @@ func (service *ChainlinkOracleService) GetOCRKeyBundles() ([]OracleOcrKeyBundle,
 }
 
 func (service *ChainlinkOracleService) SetJobSpec(
-		oracleContractAddress string) (jobId string, err error) {
+		oracleContractAddress string,
+		bootstrapperIpAddr string,
+		bootstrapperPeerId string) (jobId string, err error) {
 	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
 
-	// Get transmitter key
-	ethAddrUrl := service.getApiRequestUrl(
-		fmt.Sprintf("%v/%v", keysEndpoint, ethKeyEndpointSuffix),
-	)
-	ethAddrResp, err := client.Get(ethAddrUrl)
+	// Transmitter ETH address
+	ethKeys, err := service.GetEthKeys()
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to get Ethereum account info from oracle")
+		return "", stacktrace.Propagate(err, "An error occurred getting the ETH keys from the oracle")
 	}
-	ethereumKeys := new(OracleEthereumKeysResponse)
-	err = parseAndLogResponse(ethAddrResp, ethereumKeys)
-	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to parse Ethereum account info response")
-	}
+	transmitterKey := ethKeys[transmitterEthKeyIndex]
+	transmitterAddress := transmitterKey.Attributes.Address
 
-	// Get P2P ID
-	peerToPeerIdUrl := service.getApiRequestUrl(
-		fmt.Sprintf("%v/%v", keysEndpoint, peerToPeerIdEndpointSuffix),
-	)
-	peerToPeerIdResponse, err := client.Get(peerToPeerIdUrl)
+	// P2P ID
+	allPeer2PeerKeys, err := service.GetPeerToPeerKeys()
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to get peer-to-peer ID from oracle")
+		return "", stacktrace.Propagate(err, "An error occurred getting the P2P keys from the oracle")
 	}
-	// TODO DEBUGGING REMOVE
-	// TODO STRIP OFF "p2p_" leader from the P2P key
-	defer peerToPeerIdResponse.Body.Close()
-	peerToPeerIdResponseBodyBytes, err := ioutil.ReadAll(peerToPeerIdResponse.Body)
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred reading the peer-to-peer ID response body bytes")
+	if len(allPeer2PeerKeys) != 1 {
+		return "", stacktrace.NewError("Expected exactly 1 P2P key but found %v", len(allPeer2PeerKeys))
 	}
-	logrus.Debugf("Peer-to-peer ID response body: %v", string(peerToPeerIdResponseBodyBytes))
-	// TODO PARSE THE RESPONSE
+	peer2PeerKey := allPeer2PeerKeys[0]
+	peer2PeerId := peer2PeerKey.Attributes.PeerId
 
-	// Get OCR key bundle ID
-	ocrKeyUrl := service.getApiRequestUrl(
-		fmt.Sprintf("%v/%v", keysEndpoint, ocrKeyEndpointSuffix),
-	)
-	ocrKeyResponse, err := client.Get(ocrKeyUrl)
+	// OCR key bundle ID
+	allOcrKeyBundles, err := service.GetOCRKeyBundles()
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to get OCR key bundle ID from oracle")
+		return "", stacktrace.Propagate(err, "An error occurred getting the OCR key bundles from the oracle")
 	}
-	// TODO DEBUGGING REMOVE
-	defer ocrKeyResponse.Body.Close()
-	ocrKeyResponseBodyBytes, err := ioutil.ReadAll(ocrKeyResponse.Body)
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred reading the OCR key bundle ID response body bytes")
+	if len(allOcrKeyBundles) != 1 {
+		return "", stacktrace.NewError("Expected exactly 1 OCR key bundle but found %v", len(allOcrKeyBundles))
 	}
-	logrus.Debugf("OCR key bundle ID response body: %v", string(ocrKeyResponseBodyBytes))
-	// TODO PARSE THE RESPONSE
+	ocrKeyBundle := allOcrKeyBundles[0]
+	ocrKeyBundleId := ocrKeyBundle.Attributes.Id
 
-	jobSpecJsonStr := generateJobSpec(oracleContractAddress)
+	jobSpecJsonStr := generateJobSpec(
+		oracleContractAddress,
+		bootstrapperIpAddr,
+		bootstrapperPeerId,
+		peer2PeerId,
+		ocrKeyBundleId,
+		transmitterAddress)
 	jsonByteArray := []byte(jobSpecJsonStr)
 	url := fmt.Sprintf(
 		"http://%v:%v/%v",
@@ -236,6 +230,7 @@ func (service *ChainlinkOracleService) getApiRequestUrl(endpoint string) string 
 		endpoint)
 }
 
+/*
 func generateJobSpec(oracleContractAddress string) string {
 	return fmt.Sprintf(`{
 		  "initiators": [
@@ -263,9 +258,8 @@ func generateJobSpec(oracleContractAddress string) string {
 		  ]
 		}`, oracleContractAddress)
 }
+*/
 
-
-/*
 func generateJobSpec(
 			oracleContractAddress string,
 			bootstrapIpAddr string,
@@ -274,40 +268,41 @@ func generateJobSpec(
 			nodeOcrKeyBundleId string,
 			nodeEthTransmitterAddress string) string {
 		// TODO Add an EthInt256 step to this??
-		return fmt.Sprintf(`
-	type               = "offchainreporting"
-	schemaVersion      = 1
-	contractAddress    = "%v"
-	p2pPeerID          = "%v"
-	p2pBootstrapPeers  = [
-		"/dns4/%v/tcp/1234/p2p/%v",
-	]
-	isBootstrapPeer    = false
-	keyBundleID        = "%v"
-	monitoringEndpoint = "chain.link:4321"
-	transmitterAddress = "%v"
-	observationTimeout = "10s"
-	blockchainTimeout  = "20s"
-	contractConfigTrackerSubscribeInterval = "2m"
-	contractConfigTrackerPollInterval = "1m"
-	contractConfigConfirmations = 3
-	observationSource = """
-		// data source 1
-		ds1          [type=http method=POST url="(http://external-adapter:6633)" requestData="{}"];
-		ds1_parse    [type=jsonparse path="data,result"];
-		ds1_multiply [type=multiply times=10];
+		return fmt.Sprintf(
+			`
+type               = "offchainreporting"
+schemaVersion      = 1
+contractAddress    = "%v"
+p2pBootstrapPeers  = [
+	"/dns4/%v/tcp/1234/p2p/%v",
+]
+p2pPeerID          = "%v"
+isBootstrapPeer    = false
+keyBundleID        = "%v"
+monitoringEndpoint = "chain.link:4321"
+transmitterAddress = "%v"
+observationTimeout = "10s"
+blockchainTimeout  = "20s"
+contractConfigTrackerSubscribeInterval = "2m"
+contractConfigTrackerPollInterval = "1m"
+contractConfigConfirmations = 3
+observationSource = """
+	// data source 1
+	ds1          [type=http method=POST url="(http://external-adapter:6633)" requestData="{}"];
+	ds1_parse    [type=jsonparse path="data,result"];
+	ds1_multiply [type=multiply times=10];
 
-		ds1 -> ds1_parse -> ds1_multiply -> answer;
-		answer [type=median];
-	"""`,
+	ds1 -> ds1_parse -> ds1_multiply -> answer;
+	answer [type=median];
+"""
+			`,
 			oracleContractAddress,
-			nodePeerToPeerId,
 			bootstrapIpAddr,
 			bootstrapPeerToPeerId,
+			nodePeerToPeerId,
 			nodeOcrKeyBundleId,
 			nodeEthTransmitterAddress)
 }
-*/
 
 func (service *ChainlinkOracleService) makeAndParseApiGetRequest(apiEndpoint string, targetStruct interface{}) error {
 	client, err := service.getOrCreateClientWithSession()
