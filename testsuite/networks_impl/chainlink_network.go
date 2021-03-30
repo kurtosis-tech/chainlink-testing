@@ -38,47 +38,52 @@ const (
 	// Number of oracle nodes that will be deployed on the network (with the first being a bootstrapper)
 	// TODO Up to 5
 	numOracles = 1
+
+	maxNumGethValidatorConnectednessVerifications = 3
+	timeBetweenGethValidatorConnectednessVerifications = 1 * time.Second
 )
 
 type ChainlinkNetwork struct {
-	networkCtx                  *networks.NetworkContext
-	gethDataDirArtifactId       services.FilesArtifactID
-	gethServiceImage            string
-	gethBootsrapperService      *geth.GethService
-	gethServices                map[services.ServiceID]*geth.GethService
-	nextGethServiceId           int
-	linkContractAddress         string
-	oracleContractAddress		string
-	linkContractDeployerImage   string
-	linkContractDeployerService *chainlink_contract_deployer.ChainlinkContractDeployerService
-	postgresImage               string
-	chainlinkOracleImage        string
-	chainlinkOracleServices     []*chainlink_oracle.ChainlinkOracleService
-	priceFeedServerImage		string
-	priceFeedServer				*price_feed_server.PriceFeedServer
-	priceFeedJobId				string
+	networkCtx                   *networks.NetworkContext
+	gethDataDirArtifactId        services.FilesArtifactID
+	gethServiceImage                   string
+	gethBootstrapperService            *geth.GethService
+	gethServices                       map[services.ServiceID]*geth.GethService
+	nextGethServiceId                  int
+	linkContractAddress                string
+	oracleContractAddress              string
+	linkContractDeployerImage          string
+	linkContractDeployerService        *chainlink_contract_deployer.ChainlinkContractDeployerService
+	postgresImage                      string
+	chainlinkOracleImage               string
+	chainlinkOracleBootstrapperService *chainlink_oracle.ChainlinkOracleService
+	chainlinkOracleServices            []*chainlink_oracle.ChainlinkOracleService
+	priceFeedServerImage               string
+	priceFeedServer                    *price_feed_server.PriceFeedServer
+	priceFeedJobId                     string
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
 	gethServiceImage string, linkContractDeployerImage string, postgresImage string,
 	chainlinkOracleImage string, priceFeedServerImage string) *ChainlinkNetwork {
 	return &ChainlinkNetwork{
-		networkCtx:                  networkCtx,
-		gethDataDirArtifactId:       gethDataDirArtifactId,
-		gethServiceImage:            gethServiceImage,
-		gethBootsrapperService:      nil,
-		gethServices:                map[services.ServiceID]*geth.GethService{},
-		nextGethServiceId:           0,
-		linkContractAddress:         "",
-		oracleContractAddress:       "",
-		linkContractDeployerImage:   linkContractDeployerImage,
-		linkContractDeployerService: nil,
-		postgresImage:               postgresImage,
-		chainlinkOracleImage:        chainlinkOracleImage,
-		chainlinkOracleServices:     []*chainlink_oracle.ChainlinkOracleService{},
-		priceFeedServerImage:        priceFeedServerImage,
-		priceFeedServer:             nil,
-		priceFeedJobId:              "",
+		networkCtx:                   networkCtx,
+		gethDataDirArtifactId:        gethDataDirArtifactId,
+		gethServiceImage:                   gethServiceImage,
+		gethBootstrapperService:            nil,
+		gethServices:                       map[services.ServiceID]*geth.GethService{},
+		nextGethServiceId:                  0,
+		linkContractAddress:                "",
+		oracleContractAddress:              "",
+		linkContractDeployerImage:          linkContractDeployerImage,
+		linkContractDeployerService:        nil,
+		postgresImage:                      postgresImage,
+		chainlinkOracleImage:               chainlinkOracleImage,
+		chainlinkOracleBootstrapperService: nil,
+		chainlinkOracleServices:            []*chainlink_oracle.ChainlinkOracleService{},
+		priceFeedServerImage:               priceFeedServerImage,
+		priceFeedServer:                    nil,
+		priceFeedJobId:                     "",
 	}
 }
 
@@ -88,7 +93,7 @@ func (network *ChainlinkNetwork) DeployChainlinkContract() error {
 	}
 
 	// We could pick any node here, but we go with the bootstrapper arbitrarily.
-	deployService := network.gethBootsrapperService
+	deployService := network.gethBootstrapperService
 	initializer := chainlink_contract_deployer.NewChainlinkContractDeployerInitializer(network.linkContractDeployerImage)
 	uncastedContractDeployer, checker, err := network.networkCtx.AddService(linkContractDeployerId, initializer)
 	if err != nil {
@@ -151,7 +156,7 @@ func (network *ChainlinkNetwork) FundOracleEthAccounts() error {
 	}
 	for _, ethAccount := range oracleEthAccounts {
 		toAddress := ethAccount.Attributes.Address
-		err = network.gethBootsrapperService.SendTransaction(geth.FirstFundedAddress, toAddress, oracleEthPreFundingAmount)
+		err = network.gethBootstrapperService.SendTransaction(geth.FirstFundedAddress, toAddress, oracleEthPreFundingAmount)
 		if err != nil {
 			return stacktrace.Propagate(err, "An error occurred sending eth between accounts.")
 		}
@@ -253,9 +258,9 @@ func (network *ChainlinkNetwork) RequestData() error {
 	return nil
 }
 
-func (network *ChainlinkNetwork) AddBootstrapper() error {
-	if network.gethBootsrapperService != nil {
-		return stacktrace.NewError("Cannot add bootstrapper service to network; bootstrapper already exists!")
+func (network *ChainlinkNetwork) AddGethBootstrapper() error {
+	if network.gethBootstrapperService != nil {
+		return stacktrace.NewError("Cannot add Geth bootstrapper service to network; Geth bootstrapper already exists!")
 	}
 
 	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, nil, true)
@@ -267,8 +272,14 @@ func (network *ChainlinkNetwork) AddBootstrapper() error {
 		return stacktrace.Propagate(err, "An error occurred waiting for the bootstrapper service to start")
 	}
 	castedGethBootstrapperService := uncastedBootstrapper.(*geth.GethService)
-	network.gethBootsrapperService = castedGethBootstrapperService
+	network.gethBootstrapperService = castedGethBootstrapperService
 	return nil
+}
+
+func (network *ChainlinkNetwork) AddOracleBootstrapper() error {
+	if network.chainlinkOracleBootstrapperService != nil {
+		return stacktrace.NewError("Cannot add oracle bootstrapper service to network; oracle bootstrapper already exists!")
+	}
 }
 
 func (network *ChainlinkNetwork) AddOracleServices() error {
@@ -298,7 +309,7 @@ func (network *ChainlinkNetwork) AddOracleServices() error {
 		}
 
 		oracleInitializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(network.chainlinkOracleImage,
-			network.linkContractAddress, network.oracleContractAddress, network.gethBootsrapperService, castedPostgres)
+			network.linkContractAddress, network.oracleContractAddress, network.gethBootstrapperService, castedPostgres)
 		oracleServiceId := services.ServiceID(fmt.Sprintf("%v%v", chainlinkOracleIdPrefix, i))
 		uncastedChainlinkOracle, checker, err := network.networkCtx.AddService(oracleServiceId, oracleInitializer)
 		if err != nil {
@@ -317,7 +328,7 @@ func (network *ChainlinkNetwork) AddOracleServices() error {
 }
 
 func (network *ChainlinkNetwork) GetBootstrapper() *geth.GethService {
-	return network.gethBootsrapperService
+	return network.gethBootstrapperService
 }
 
 func (network *ChainlinkNetwork) GetLinkContractAddress() string {
@@ -343,7 +354,7 @@ func (network *ChainlinkNetwork) AddPriceFeedServer() error {
 }
 
 func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {
-	if (network.gethBootsrapperService == nil) {
+	if (network.gethBootstrapperService == nil) {
 		return "", stacktrace.NewError("Cannot add ethereum node to network; no bootstrap node exists")
 	}
 
@@ -351,7 +362,7 @@ func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {
 	network.nextGethServiceId = network.nextGethServiceId + 1
 	serviceId := services.ServiceID(serviceIdStr)
 
-	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, network.gethBootsrapperService, false)
+	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, network.gethBootstrapperService, false)
 	uncastedGethService, checker, err := network.networkCtx.AddService(serviceId, initializer)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred adding the ethereum node")
@@ -367,11 +378,13 @@ func (network *ChainlinkNetwork) AddGethService() (services.ServiceID, error) {
 
 func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 	allServices := map[services.ServiceID]*geth.GethService{
-		ethereumBootstrapperId: network.gethBootsrapperService,
+		ethereumBootstrapperId: network.gethBootstrapperService,
 	}
 	for id, service := range network.gethServices {
 		allServices[id] = service
 	}
+
+	// Connect all nodes to each other
 	for nodeId, nodeGethService := range allServices {
 		for peerId, peerGethService := range allServices {
 			if nodeId == peerId {
@@ -390,6 +403,29 @@ func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 			}
 		}
 	}
+
+	// Now check that all nodes have all other nodes as peers
+	expectedNumPeers := len(allServices) - 1
+	for nodeId, nodeGethService := range allServices {
+		seesAllPeers := false
+		numVerificationsAttempted := 0
+		for !seesAllPeers && numVerificationsAttempted < maxNumGethValidatorConnectednessVerifications {
+			peers, err := nodeGethService.GetPeers()
+			numVerificationsAttempted += 1
+			seesAllPeers = err == nil && len(peers) == expectedNumPeers
+			if !seesAllPeers {
+				time.Sleep(timeBetweenGethValidatorConnectednessVerifications)
+			}
+		}
+		if !seesAllPeers {
+			return stacktrace.NewError(
+				"Geth validator '%v' still didn't see all %v peers after %v tries with %v between tries",
+				nodeId,
+				expectedNumPeers,
+				maxNumGethValidatorConnectednessVerifications,
+				timeBetweenGethValidatorConnectednessVerifications)
+		}
+	}
 	return nil
 }
 
@@ -399,4 +435,35 @@ func (network *ChainlinkNetwork) GetGethService(serviceId services.ServiceID) (*
 		return nil, stacktrace.NewError("No geth service with ID '%v' has been added", serviceId)
 	}
 	return service, nil
+}
+
+// ====================================================================================================
+//                                          Private helper functions
+// ====================================================================================================
+func addOracleService(
+		networkCtx *networks.NetworkContext,
+		linkContractAddr string,
+		oracleContractAddr string,
+		gethBootstrapperService *geth.GethService,
+		serviceId services.ServiceID,
+		dockerImage string,
+		postgresService *postgres.PostgresService) (*chainlink_oracle.ChainlinkOracleService, error) {
+	initializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(
+		dockerImage,
+		linkContractAddr,
+		oracleContractAddr,
+		gethBootstrapperService,
+		postgresService)
+	uncastedService, checker, err := networkCtx.AddService(serviceId, initializer)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred adding oracle service with ID '%v'", serviceId)
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred waiting for oracle service with ID '%v' to start up", serviceId)
+	}
+	castedService, ok := uncastedService.(*chainlink_oracle.ChainlinkOracleService)
+	if !ok {
+		return nil, stacktrace.NewError("Could not downcast oracle service to correct type for service with ID '%v'", serviceId)
+	}
+	return castedService, nil
 }

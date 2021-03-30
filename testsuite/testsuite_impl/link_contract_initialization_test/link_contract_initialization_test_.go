@@ -52,7 +52,7 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		return nil, stacktrace.Propagate(err, "Error adding the price feed server to the network.")
 	}
 
-	err = chainlinkNetwork.AddBootstrapper()
+	err = chainlinkNetwork.AddGethBootstrapper()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
 	}
@@ -77,24 +77,6 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	err := chainlinkNetwork.ManuallyConnectPeers()
 	if err != nil {
 		testCtx.Fatal(stacktrace.Propagate(err, "Failed to manually connect peers in the network."))
-	}
-
-	bootstrapPeers, err := chainlinkNetwork.GetBootstrapper().GetPeers()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Failed to get peers of the bootstrapper."))
-	}
-	testCtx.AssertTrue(len(bootstrapPeers) == numberOfExtraNodes, stacktrace.NewError("Bootstrapper is not connected to all of the network."))
-
-	for _, validatorId := range test.validatorIds {
-		gethService, err := chainlinkNetwork.GetGethService(validatorId)
-		if err != nil {
-			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get validator %v", validatorId))
-		}
-		peers, err := gethService.GetPeers()
-		if err != nil {
-			testCtx.Fatal(stacktrace.Propagate(err, "Failed to get peers of validator %v", validatorId))
-		}
-		testCtx.AssertTrue(len(peers) == numberOfExtraNodes, stacktrace.NewError("Validator %v is not connected to all of the network.", validatorId))
 	}
 
 	logrus.Infof("Deploying $LINK contracts on the testnet.")
