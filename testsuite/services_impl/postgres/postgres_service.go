@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -15,6 +16,9 @@ const (
 	postgresSuperUsername = "postgres"
 
 	postgresSuperUserPassword = "password"
+
+	numSuccessfulPingsForAvailability = 3
+	timeBetweenPings = 500 * time.Millisecond
 )
 
 type PostgresService struct {
@@ -56,6 +60,12 @@ func (postgresService PostgresService) IsAvailable() bool {
 	if err != nil {
 		return false
 	}
-	err = db.Ping()
-	return err != nil
+	// Need multiple pings to be successful, since the database seems to come up, shut down, and then come back up
+	for i := 0; i < numSuccessfulPingsForAvailability; i++ {
+		if err := db.Ping(); err != nil {
+			return false
+		}
+		time.Sleep(timeBetweenPings)
+	}
+	return true
 }
