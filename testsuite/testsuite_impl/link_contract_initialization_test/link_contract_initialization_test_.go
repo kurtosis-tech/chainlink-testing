@@ -58,7 +58,7 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 	}
 	logrus.Infof("Added a geth bootstrapper service.")
 	for i := 0; i < numberOfExtraNodes; i++ {
-		serviceId, err := chainlinkNetwork.AddGethService()
+		serviceId, err := chainlinkNetwork.AddAdditionalGethService()
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "Failed to add an ethereum node.")
 		}
