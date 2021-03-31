@@ -2,6 +2,9 @@ package networks_impl
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
@@ -11,7 +14,11 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/price_feed_server"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
+	"github.com/smartcontractkit/libocr/gethwrappers/accesscontrolledoffchainaggregator"
+	"github.com/smartcontractkit/libocr/gethwrappers/offchainaggregator"
+	"math/big"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -77,7 +84,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		linkContractDeployerService: nil,
 		postgresImage:               postgresImage,
 		chainlinkOracleImage:        chainlinkOracleImage,
-		chainlinkOracleServices:     map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService,
+		chainlinkOracleServices:     map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService{},
 		priceFeedServerImage:        priceFeedServerImage,
 		priceFeedServer:             nil,
 		priceFeedJobId:              "",
@@ -174,11 +181,33 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 	logrus.Info("Funded oracle ETH addresses")
 
+	logrus.Info("Deploying OCR oracle contract...")
+	gethBootstrapperClient, err := gethBootstrapper.GetClient()
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred getting the Geth bootstrapper ethclient")
+	}
+	// TODO use the ocrContract variable
+	ocrContractAddr, _, err := deployOcrOracleContract(gethBootstrapperClient, linkContractAddress)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred deploying the OCR contract")
+	}
+
+	// TODO Debugging
+	logrus.Infof("OCR contract address: %v", ocrContractAddr.Hex())
+
+	// TODO Set up oracle jobs corresponding to the OCR contract
+
+	// TODO configure the Oracle contract
+
+	// TODO Add price feed server
+
+	return nil
 }
 
 /*
 	Runs scripts on the contract deployer container which request data from the oracle.
 */
+/*
 func (network *ChainlinkNetwork) RequestData() error {
 	if len(network.chainlinkOracleServices) == 0 {
 		return stacktrace.NewError("Tried to request data before deploying any oracle services")
@@ -245,12 +274,13 @@ func (network *ChainlinkNetwork) RequestData() error {
 	}
 	return nil
 }
+ */
 
 func (network *ChainlinkNetwork) GetLinkContractAddress() string {
 	return network.linkContractAddress
 }
 
-func (network *ChainlinkNetwork) GetChainlinkOracles() []*chainlink_oracle.ChainlinkOracleService {
+func (network *ChainlinkNetwork) GetChainlinkOracles() map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService {
 	return network.chainlinkOracleServices
 }
 
@@ -440,6 +470,53 @@ func fundOracleEthAccounts(oracleServices map[services.ServiceID]*chainlink_orac
 	return nil
 }
 
+// NOTE: Most of this method is copied from:
+//	https://github.com/smartcontractkit/chainlink/blob/51944ed3b3d0ea390998a3fffe33abaf2e15a711/core/internal/features_test.go#L1303
+// TODO Make linkContractAddr a proper common.Address type, when we deploy it via the ethclient
+func deployOcrOracleContract(validatorClient *ethclient.Client, linkContractAddr string) (ocrContractAddr common.Address, ocrContract *offchainaggregator.OffchainAggregator, resultErr error) {
+	// TODO THIS IS A GIGANTIC HACK - NEED A PROPER WAY TO GET THE GETH KEY!
+	gethBootstrapperKey := "{\"address\":\"8ea1441a74ffbe9504a8cb3f7e4b7118d8ccfc56\",\"crypto\":{\"cipher\":\"aes-128-ctr\",\"ciphertext\":\"2dfb66792b39f458365f8604e959d000a57a44c5c9e935130da75edb21571666\",\"cipherparams\":{\"iv\":\"c75546ec881dcd668e7d9cb4f75d24f3\"},\"kdf\":\"scrypt\",\"kdfparams\":{\"dklen\":32,\"n\":262144,\"p\":1,\"r\":8,\"salt\":\"4cb212065dfaba68e7a2e99f42d2bf4e10edc5793390424bfeb4c73a381dbdfd\"},\"mac\":\"98c469923b668bd1655e8acdb40b7d9d5ceae53058b5fd706064595d10b67142\"},\"id\":\"f64bbf7e-e34f-442e-91b9-9bc0a1190edf\",\"version\":3}\n"
+	password := "password"
+
+	// TODO we're just guessing at the chain ID of 1 here!!
+	signedTransactor, err := bind.NewTransactorWithChainID(strings.NewReader(gethBootstrapperKey), password, big.NewInt(1))
+	if err != nil {
+		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred creating a transactor to sign the transaction")
+	}
+
+	accessControllerAddr, _, _, err := accesscontrolledoffchainaggregator.DeploySimpleWriteAccessController(signedTransactor, validatorClient)
+	if err != nil {
+		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred deploying the access controller contract")
+	}
+
+	min, max := new(big.Int), new(big.Int)
+	min.Exp(big.NewInt(-2), big.NewInt(191), nil)
+	max.Exp(big.NewInt(2), big.NewInt(191), nil)
+	max.Sub(max, big.NewInt(1))
+	ocrContractAddress, _, ocrContract, err := offchainaggregator.DeployOffchainAggregator(
+		signedTransactor,                                        // auth *bind.TransactOpts
+		validatorClient,                              // backend bind.ContractBackend
+		1000,                                         // _maximumGasPrice uint32,
+		200,                                          //_reasonableGasPrice uint32,
+		3.6e7,                                        // 3.6e7 microLINK, or 36 LINK
+		1e8,                                          // _linkGweiPerObservation uint32,
+		4e8,                                          // _linkGweiPerTransmission uint32,
+		common.HexToAddress(linkContractAddr),     //_link common.Address,
+		// TODO THIS IS A GIGANTIC HACK - NEED TO PIPE THIS THROUGH PROPERLY
+		common.HexToAddress(geth.FirstFundedAddress), // validator address
+		min,                                          // -2**191
+		max,                                          // 2**191 - 1
+		accessControllerAddr,
+		accessControllerAddr,
+		0,
+		"Test OCR Contract")
+	if err != nil {
+		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred deploying the OCR contract")
+	}
+	return ocrContractAddress, ocrContract, nil
+}
+
+/*
 func (network *ChainlinkNetwork) DeployOracleJobs() error {
 	if network.oracleContractAddress == "" {
 		return stacktrace.NewError("Can not deploy oracle jobs because oracle contract has not yet been deployed.")
@@ -460,3 +537,4 @@ func (network *ChainlinkNetwork) DeployOracleJobs() error {
 	return nil
 }
 
+ */

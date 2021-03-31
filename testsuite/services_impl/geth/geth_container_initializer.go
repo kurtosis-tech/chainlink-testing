@@ -6,6 +6,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/genesis"
 	"github.com/palantir/stacktrace"
 	"os"
+	"path"
 )
 
 const (
@@ -24,6 +25,7 @@ const (
 	privateKeyFilePassword = "password"
 	targetGasLimit         = 10000000
 
+	// TODO This should be encoded in a genesis const!!!!!
 	FirstFundedAddress  = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
 
 	// The geth node opens a socket for IPC communication in the genesis directory.
@@ -109,7 +111,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 	entrypointCommand := fmt.Sprintf("mkdir -p %v && cp -r %v/%v/* %v/ && ", gethDataRuntimeDirpath, gethDataMountedDirpath, gethTgzDataDir, gethDataRuntimeDirpath)
 	entrypointCommand += fmt.Sprintf("geth init --datadir %v %v && ", gethDataRuntimeDirpath, mountedFileFilepaths[genesisJsonFilename])
 	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
-		gethDataRuntimeDirpath + string(os.PathSeparator) + keystoreFilename,
+		path.Join(gethDataRuntimeDirpath, keystoreFilename),
 		gethDataRuntimeDirpath,
 		PrivateNetworkId)
 	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v --gcmode archive --syncmode full ",

@@ -46,49 +46,24 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		test.chainlinkOracleImage,
 		test.priceFeedServerImage)
 
+	if err := chainlinkNetwork.Setup(); err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred setting up the Chainlink network")
+	}
+
 	err := chainlinkNetwork.AddPriceFeedServer()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error adding the price feed server to the network.")
-	}
-
-	err = chainlinkNetwork.AddGethBootstrapper()
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error adding bootstrapper to the network.")
-	}
-	logrus.Infof("Added a geth bootstrapper service.")
-	for i := 0; i < numberOfExtraNodes; i++ {
-		serviceId, err := chainlinkNetwork.AddAdditionalGethService()
-		if err != nil {
-			return nil, stacktrace.Propagate(err, "Failed to add an ethereum node.")
-		}
-		logrus.Infof("Added a geth service with id: %v", serviceId)
-		test.validatorIds = append(test.validatorIds, serviceId)
 	}
 
 	return chainlinkNetwork, nil
 }
 
 func (test *LinkContractInitializationTest) Run(network networks.Network, testCtx testsuite.TestContext) {
+	// TODO UNCOMMENT
 	// Necessary because Go doesn't have generics
-	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
+	// _ := network.(*networks_impl.ChainlinkNetwork)
 
-	logrus.Infof("Funding ethereum accounts owned by the Oracle so that it can fulfill requests.")
-	err = chainlinkNetwork.FundOracleEthAccounts()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error funding Oracle accounts."))
-	}
-
-	logrus.Infof("Configuring and setting a JobSpec on the Oracle to access an example price feed.")
-	err = chainlinkNetwork.DeployOracleJobs()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error deploying Oracle job."))
-	}
-
-	logrus.Infof("Using on-chain smart contracts to trigger job from the Oracle smart contract.")
-	err = chainlinkNetwork.RequestData()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error requesting data from Chainlink oracle."))
-	}
+	// TODO request data using the price feed server
 
 	logrus.Infof("Oracle successfully ran job accessing a remote price feed URL.")
 }

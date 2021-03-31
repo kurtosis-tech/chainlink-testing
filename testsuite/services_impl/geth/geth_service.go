@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
@@ -67,6 +68,15 @@ func (service GethService) GetRpcPort() int {
 
 func (service GethService) GetWsPort() int {
 	return wsPort
+}
+
+func (service GethService) GetClient() (*ethclient.Client, error) {
+	url := fmt.Sprintf("http://%v:%v", service.serviceCtx.GetIPAddress(), rpcPort)
+	client, err := ethclient.Dial(url)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred getting the Ethereum client")
+	}
+	return client, nil
 }
 
 func (service GethService) AddPeer(peerEnode string) (bool, error) {
