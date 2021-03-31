@@ -51,7 +51,7 @@ func (initializer PriceFeedServerInitializer) GetEnvironmentVariableOverrides() 
 	return map[string]string{}, nil
 }
 
-func (initializer PriceFeedServerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+func (initializer PriceFeedServerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipAddr string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	return nil, nil, nil
 }
 

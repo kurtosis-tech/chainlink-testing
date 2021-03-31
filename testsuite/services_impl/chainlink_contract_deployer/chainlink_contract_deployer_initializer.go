@@ -56,7 +56,7 @@ func (initializer ChainlinkContractDeployerInitializer) GetEnvironmentVariableOv
 	}, nil
 }
 
-func (initializer ChainlinkContractDeployerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+func (initializer ChainlinkContractDeployerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipAddr string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	entrypointArgs = []string{
 		"/bin/sh",
 		"-c",

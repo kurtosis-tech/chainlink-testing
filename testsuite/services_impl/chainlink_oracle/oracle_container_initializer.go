@@ -87,6 +87,7 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"GAS_UPDATER_ENABLED": "true",
 		"GAS_UPDATER_BLOCK_DELAY": strconv.Itoa(gasUpdaterDelay),
 		"ALLOW_ORIGINS":"*",
+		// TODO Set CHAINLINK_DEV = true, which disables disables ocr spec validation so we can have fast polling for the test.
 		"ETH_URL": fmt.Sprintf("ws://%v:%v", initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort()),
 		"DATABASE_URL": fmt.Sprintf("postgresql://%v:%v@%v:%v/%v?sslmode=disable",
 			initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
@@ -119,7 +120,7 @@ func (initializer ChainlinkOracleInitializer) GetTestVolumeMountpoint() string {
 	return geth.TestVolumeMountpoint
 }
 
-func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipAddr string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	entrypointArgs = []string{
 		"/bin/bash",
 		"-c",

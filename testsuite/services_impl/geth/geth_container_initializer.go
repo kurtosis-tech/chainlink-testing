@@ -26,7 +26,7 @@ const (
 	targetGasLimit         = 10000000
 
 	// TODO This should be encoded in a genesis const!!!!!
-	FirstFundedAddress  = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
+	FirstFundedAddressHex = "0x8eA1441a74ffbE9504a8Cb3F7e4b7118d8CcFc56"
 
 	// The geth node opens a socket for IPC communication in the genesis directory.
 	// This socket opening does not work on mounted filesystems, so runtime genesis directory needs to be off the mount.
@@ -34,6 +34,7 @@ const (
 	gethDataRuntimeDirpath = "/data"
 
 	PrivateKeyPassword = "password"
+	// TODO Distinguish chain ID from network ID
 	PrivateNetworkId     = 9
 	TestVolumeMountpoint = "/test-volume"
 )
@@ -106,25 +107,26 @@ func (initializer GethContainerInitializer) GetEnvironmentVariableOverrides() (m
 	return map[string]string{}, nil
 }
 
-func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipAddr string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	// This is a bootstrapper
 	entrypointCommand := fmt.Sprintf("mkdir -p %v && cp -r %v/%v/* %v/ && ", gethDataRuntimeDirpath, gethDataMountedDirpath, gethTgzDataDir, gethDataRuntimeDirpath)
 	entrypointCommand += fmt.Sprintf("geth init --datadir %v %v && ", gethDataRuntimeDirpath, mountedFileFilepaths[genesisJsonFilename])
+	// TODO Get rid of keystore when we switch completely to the Ethclient API, and sign our own transactions
 	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
 		path.Join(gethDataRuntimeDirpath, keystoreFilename),
 		gethDataRuntimeDirpath,
 		PrivateNetworkId)
 	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v --gcmode archive --syncmode full ",
 		httpExposedApisString,
-		ipPlaceholder,
-		ipPlaceholder)
+		ipAddr,
+		ipAddr)
 	// Chainlink oracles require websocket communication
-	entrypointCommand += fmt.Sprintf("--ws --ws.addr %v --ws.port %v --ws.api %v --ws.origins=\"*\" ", ipPlaceholder, wsPort, wsExposedApisString)
+	entrypointCommand += fmt.Sprintf("--ws --ws.addr %v --ws.port %v --ws.api %v --ws.origins=\"*\" ", ipAddr, wsPort, wsExposedApisString)
 	if initializer.isMiner {
 		entrypointCommand += fmt.Sprintf("--mine --miner.threads=1 --miner.etherbase=%v --miner.gasprice=%v --miner.gaslimit=%v ",
-			FirstFundedAddress, gasPrice, targetGasLimit)
+			FirstFundedAddressHex, gasPrice, targetGasLimit)
 		// unlock the first account for use in spawning $LINK contract and distributing funds.
-		entrypointCommand += fmt.Sprintf("--unlock %v --password %v  --allow-insecure-unlock ", FirstFundedAddress, mountedFileFilepaths[passwordFilename])
+		entrypointCommand += fmt.Sprintf("--unlock %v --password %v  --allow-insecure-unlock ", FirstFundedAddressHex, mountedFileFilepaths[passwordFilename])
 	}
 	if initializer.gethBootstrapperService != nil {
 		bootnodeEnodeRecord, err := initializer.gethBootstrapperService.GetEnodeAddress()

@@ -38,7 +38,8 @@ const (
 	transmitterEthKeyIndex = 0
 )
 
-
+// TODO Make this return an instance of client.Client from the chainlink repo, so users get full access!!
+//  This prevents us from hand-crafting RPC requests to the node
 type ChainlinkOracleService struct {
 	serviceCtx *services.ServiceContext
 	clientWithSession *http.Client

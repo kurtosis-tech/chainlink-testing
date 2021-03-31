@@ -57,7 +57,7 @@ func (initializer PostgresContainerInitializer) GetTestVolumeMountpoint() string
 	return testVolumeMountpoint
 }
 
-func (initializer PostgresContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipPlaceholder string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
+func (initializer PostgresContainerInitializer) GetStartCommandOverrides(mountedFileFilepaths map[string]string, ipAddr string) (entrypointArgs []string, cmdArgs []string, resultErr error) {
 	entrypointArgs = []string{
 		"/bin/bash",
 		"-c",
@@ -66,7 +66,7 @@ func (initializer PostgresContainerInitializer) GetStartCommandOverrides(mounted
 			postgresSuperUserPassword,
 			entrypointScriptPath,
 			databaseName,
-			ipPlaceholder,
+			ipAddr,
 			port),
 	}
 
