@@ -216,18 +216,48 @@ func (network *ChainlinkNetwork) Setup() error {
 		return stacktrace.Propagate(err, "An error occurred deploying the OCR contract")
 	}
 
+	logrus.Info("Getting oracle identities...")
+	oracleIdentities, err := getOracleIdentities(network.chainlinkOracleServices)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred getting oracle identities")
+	}
+
 	logrus.Info("Configuring OCR contract with oracles...")
-	configureOcrContract(firstFundedAddrTransactor, ocrContract, network.chainlinkOracleServices)
+	configureOcrContract(firstFundedAddrTransactor, ocrContract, oracleIdentities)
 	logrus.Info("Configured OCR contract")
+
+	logrus.Info("Setting job specs on oracles...")
 
 	// TODO Debugging
 	logrus.Infof("OCR contract address: %v", ocrContractAddr.Hex())
 
-	// TODO Set up oracle jobs corresponding to the OCR contract
+	logrus.Info("Deploying the price feed server...")
+	priceFeedService, err := addPriceFeedServer(network.networkCtx, priceFeedServerId, network.priceFeedServerImage)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the price feed server")
+	}
+	logrus.Info("Deployed price feed server...")
 
-	// TODO configure the Oracle contract
-
-	// TODO Add price feed server
+	logrus.Info("Deploying OCR jobs on oracles...")
+	datasourceUrl := fmt.Sprintf("http://%v:%v", priceFeedService.GetIPAddress(), priceFeedService.GetHTTPPort())
+	oracleBootstrapperP2PKeys, err := oracleBootstrapper.GetPeerToPeerKeys()
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred getting the bootstrapper oracle P2P keys")
+	}
+	if len(oracleBootstrapperP2PKeys) != 1 {
+		return stacktrace.NewError("Expected exactly one bootstrapper oracle P2P key but got %v", len(oracleBootstrapperP2PKeys))
+	}
+	oracleBootstrapperPeerId := oracleBootstrapperP2PKeys[0].Attributes.PeerId
+	oracleBootstrapperIpAddr := oracleBootstrapper.GetIPAddress()
+	if err := deployOcrJobsOnOracles(
+			ocrContractAddr.Hex(),
+			oracleBootstrapperIpAddr,
+			oracleBootstrapperPeerId,
+			datasourceUrl,
+			network.chainlinkOracleServices); err != nil {
+		return stacktrace.Propagate(err, "An error occurred deploying the OCR jobs on the oracles")
+	}
+	logrus.Info("Deployed OCR jobs on oracles")
 
 	return nil
 }
@@ -312,19 +342,6 @@ func (network *ChainlinkNetwork) GetChainlinkOracles() map[services.ServiceID]*c
 	return network.chainlinkOracleServices
 }
 
-func (network *ChainlinkNetwork) AddPriceFeedServer() error {
-	initializer := price_feed_server.NewPriceFeedServerInitializer(network.priceFeedServerImage)
-	uncastedPriceFeedServer, checker, err := network.networkCtx.AddService(priceFeedServerId, initializer)
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred adding the price feed server.")
-	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return stacktrace.Propagate(err, "An error occurred waiting for the price feed server to start")
-	}
-	castedPriceFeedServer := uncastedPriceFeedServer.(*price_feed_server.PriceFeedServer)
-	network.priceFeedServer = castedPriceFeedServer
-	return nil
-}
 
 
 // ====================================================================================================
@@ -532,20 +549,17 @@ func deployOcrOracleContract(validatorClient *ethclient.Client, sendingTransacto
 	return ocrContractAddress, ocrContract, nil
 }
 
-func configureOcrContract(
-		sendingTransactor *bind.TransactOpts,
-		ocrContract *offchainaggregator.OffchainAggregator,
-		oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) error {
-	oracleIdentities := []confighelper.OracleIdentityExtra{}
+func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) (map[services.ServiceID]confighelper.OracleIdentityExtra, error) {
+	oracleIdentities := map[services.ServiceID]confighelper.OracleIdentityExtra{}
 	for serviceId, oracleService := range oracleServices {
 		// TODO Replace alllllll the handcrafting of OracleIdentityExtra inside here with a call to the Chainlink client
 		//  The desired method is likely client.Client.ListOCRKeyBundles
 		ethKeys, err := oracleService.GetEthKeys()
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting ETH addresses for oracle '%v'", serviceId)
+			return nil, stacktrace.Propagate(err, "An error occurred getting ETH addresses for oracle '%v'", serviceId)
 		}
 		if len(ethKeys) < transmitterAddressIndex + 1 {
-			return stacktrace.NewError(
+			return nil, stacktrace.NewError(
 				"Needed to get transmitter address at index %v but oracle '%v' only has %v keys/addresses",
 				transmitterAddressIndex,
 				serviceId,
@@ -555,19 +569,19 @@ func configureOcrContract(
 
 		allP2pKeys, err := oracleService.GetPeerToPeerKeys()
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting P2P keys for oracle '%v'", serviceId)
+			return nil, stacktrace.Propagate(err, "An error occurred getting P2P keys for oracle '%v'", serviceId)
 		}
 		if len(allP2pKeys) != 1 {
-			return stacktrace.NewError("Expected exactly one P2P key but got %v", len(allP2pKeys))
+			return nil, stacktrace.NewError("Expected exactly one P2P key but got %v", len(allP2pKeys))
 		}
 		p2pKey := allP2pKeys[0]
 
 		allOcrKeyBundles, err := oracleService.GetOCRKeyBundles()
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting the OCR key bundle for oracle '%v'", serviceId)
+			return nil, stacktrace.Propagate(err, "An error occurred getting the OCR key bundle for oracle '%v'", serviceId)
 		}
 		if len(allOcrKeyBundles) != 1 {
-			return stacktrace.NewError("Expected exactly one OCR key bundle but got %v", len(allOcrKeyBundles))
+			return nil, stacktrace.NewError("Expected exactly one OCR key bundle but got %v", len(allOcrKeyBundles))
 		}
 		ocrKeyBundle := allOcrKeyBundles[0]
 
@@ -579,14 +593,14 @@ func configureOcrContract(
 		transmitterAddr := common.HexToAddress(transmitterKey.Attributes.Address)
 		offChainPubKey, err := parseOcrPubKeyHexStr(ocrKeyBundle.Attributes.OffChainPublicKey, offChainPublicKeyStrPrefix)
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred parsing offchain pub key hex string")
+			return nil, stacktrace.Propagate(err, "An error occurred parsing offchain pub key hex string")
 		}
 		configPubKey, err := parseOcrPubKeyHexStr(ocrKeyBundle.Attributes.ConfigPublicKey, configPublicKeyStrPrefix)
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred parsing config pub key hex string")
+			return nil, stacktrace.Propagate(err, "An error occurred parsing config pub key hex string")
 		}
 		if len(configPubKey) != len(types.SharedSecretEncryptionPublicKey{}) {
-			return stacktrace.NewError(
+			return nil, stacktrace.NewError(
 				"Config pubkey must be of length %v but was length %v",
 				len(types.SharedSecretEncryptionPublicKey{}),
 				len(configPubKey))
@@ -604,12 +618,23 @@ func configureOcrContract(
 			SharedSecretEncryptionPublicKey: sharedSecretEncryptionPubKey,
 		}
 
-		oracleIdentities = append(oracleIdentities, identity)
+		oracleIdentities[serviceId] = identity
+	}
+	return oracleIdentities, nil
+}
+
+func configureOcrContract(
+		sendingTransactor *bind.TransactOpts,
+		ocrContract *offchainaggregator.OffchainAggregator,
+		oracleIdentities map[services.ServiceID]confighelper.OracleIdentityExtra) error {
+	oracleIdentitiesList := []confighelper.OracleIdentityExtra{}
+	for _, identity := range oracleIdentities {
+		oracleIdentitiesList = append(oracleIdentitiesList, identity)
 	}
 
 	// Params for this method are copied from https://github.com/smartcontractkit/chainlink/blob/51944ed3b3d0ea390998a3fffe33abaf2e15a711/core/internal/features_test.go#L1416
 	signers, transmitters, threshold, encodedConfigVersion, encodedConfig, err := confighelper.ContractSetConfigArgsForIntegrationTest(
-		oracleIdentities,
+		oracleIdentitiesList,
 		1, // F
 		1000000000/100, // threshold PPB
 	)
@@ -640,25 +665,37 @@ func parseOcrPubKeyHexStr(pubKeyHexStr string, prefix string) (ed25519.PublicKey
 	return pubKeyBytes, nil
 }
 
-/*
-func (network *ChainlinkNetwork) DeployOracleJobs() error {
-	if network.oracleContractAddress == "" {
-		return stacktrace.NewError("Can not deploy oracle jobs because oracle contract has not yet been deployed.")
+func deployOcrJobsOnOracles(
+		ocrContractAddrStr string,
+		bootstrapperOracleIpAddr string,
+		bootstrapperOraclePeerId string,
+		datasourceUrl string,
+		oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) error {
+	for serviceId, service := range oracleServices {
+		jobId, err := service.SetJobSpec(ocrContractAddrStr, bootstrapperOracleIpAddr, bootstrapperOraclePeerId, datasourceUrl)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred deploying the OCR job spec on oracle '%v'", serviceId)
+		}
+		logrus.Debugf("Successfully deployed OCR job spec on oracle '%v' referencing OCR contract address '%v', resulting in job ID '%v'",
+			serviceId,
+			ocrContractAddrStr,
+			jobId)
 	}
-	if len(network.chainlinkOracleServices) == 0 {
-		return stacktrace.NewError("Cannot deploy oracle jobs because oracle services are not yet deployed")
-	}
-
-	// TODO handle multiple
-	jobId, err := network.chainlinkOracleServices[0].SetJobSpec(network.oracleContractAddress)
-	if err != nil {
-		return stacktrace.Propagate(err, "Failed to set job spec.")
-	}
-	network.priceFeedJobId = jobId
-	logrus.Debugf("Information for running smart contract: oracle Address: %v, JobId: %v",
-		network.oracleContractAddress,
-		network.priceFeedJobId)
 	return nil
 }
 
- */
+func addPriceFeedServer(networkCtx *networks.NetworkContext, serviceId services.ServiceID, dockerImage string) (*price_feed_server.PriceFeedServer, error) {
+	initializer := price_feed_server.NewPriceFeedServerInitializer(dockerImage)
+	uncastedService, checker, err := networkCtx.AddService(serviceId, initializer)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred adding price feed server with ID '%v'", serviceId)
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred waiting for price feed server with ID '%v' to start", serviceId)
+	}
+	castedService, ok := uncastedService.(*price_feed_server.PriceFeedServer)
+	if !ok {
+		return nil, stacktrace.NewError("Could not downcast generic service interface to price feed server interface for service with ID '%v'", serviceId)
+	}
+	return castedService, nil
+}

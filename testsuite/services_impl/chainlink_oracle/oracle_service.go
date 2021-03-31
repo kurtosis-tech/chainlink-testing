@@ -104,10 +104,12 @@ func (service *ChainlinkOracleService) GetOCRKeyBundles() ([]OracleOcrKeyBundle,
 	return responseObj.Data, nil
 }
 
+// TODO Replace the hand-crafted POST wtih a call to the Chainlink client.Client
 func (service *ChainlinkOracleService) SetJobSpec(
 		oracleContractAddress string,
 		bootstrapperIpAddr string,
-		bootstrapperPeerId string) (jobId string, err error) {
+		bootstrapperPeerId string,
+		datasourceUrl string) (jobId string, err error) {
 	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred getting the oracle session client")
@@ -149,7 +151,8 @@ func (service *ChainlinkOracleService) SetJobSpec(
 		bootstrapperPeerId,
 		peer2PeerId,
 		ocrKeyBundleId,
-		transmitterAddress)
+		transmitterAddress,
+		datasourceUrl)
 	jsonByteArray := []byte(jobSpecJsonStr)
 	url := fmt.Sprintf(
 		"http://%v:%v/%v",
@@ -267,8 +270,10 @@ func generateJobSpec(
 			bootstrapPeerToPeerId string,
 			nodePeerToPeerId string,
 			nodeOcrKeyBundleId string,
-			nodeEthTransmitterAddress string) string {
+			nodeEthTransmitterAddress string,
+			datasourceUrl string) string {
 		// TODO Add an EthInt256 step to this??
+		// TODO Modify the tcp port for the p2pBootstrapPeers??
 		return fmt.Sprintf(
 			`
 type               = "offchainreporting"
@@ -289,7 +294,7 @@ contractConfigTrackerPollInterval = "1m"
 contractConfigConfirmations = 3
 observationSource = """
 	// data source 1
-	ds1          [type=http method=POST url="(http://external-adapter:6633)" requestData="{}"];
+	ds1          [type=http method=POST url="(%v)" requestData="{}"];
 	ds1_parse    [type=jsonparse path="data,result"];
 	ds1_multiply [type=multiply times=10];
 
@@ -302,7 +307,8 @@ observationSource = """
 			bootstrapPeerToPeerId,
 			nodePeerToPeerId,
 			nodeOcrKeyBundleId,
-			nodeEthTransmitterAddress)
+			nodeEthTransmitterAddress,
+			datasourceUrl)
 }
 
 func (service *ChainlinkOracleService) makeAndParseApiGetRequest(apiEndpoint string, targetStruct interface{}) error {

@@ -24,6 +24,8 @@ if [ "${action}" == "help" ]; then
     show_help_and_exit
 fi
 
+# TODO TODO TODO TODO We need to build the price feed server Docker image here!!!!! See https://github.com/kurtosis-tech/chainlink-testing/issues/7
+
 # >>>>>>>> Add custom testsuite parameters here <<<<<<<<<<<<<
 custom_params_json='{
     "gethServiceImage" :"ethereum/client-go:latest",

@@ -50,11 +50,6 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 		return nil, stacktrace.Propagate(err, "An error occurred setting up the Chainlink network")
 	}
 
-	err := chainlinkNetwork.AddPriceFeedServer()
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error adding the price feed server to the network.")
-	}
-
 	return chainlinkNetwork, nil
 }
 
