@@ -72,16 +72,6 @@ func (test *LinkContractInitializationTest) Run(network networks.Network, testCt
 	// Necessary because Go doesn't have generics
 	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
 
-	logrus.Infof("Starting a Chainlink Oracle node, using $LINK contract deployed at %v", chainlinkNetwork.GetLinkContractAddress())
-	err = chainlinkNetwork.AddOracleServices()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Error adding chainlink oracle to the network."))
-	}
-	logrus.Infof("Chainlink Oracle started and responsive on: %v:%v",
-		// TODO Handle multiple!!!!
-		chainlinkNetwork.GetChainlinkOracles()[0].GetIPAddress(),
-		chainlinkNetwork.GetChainlinkOracles()[0].GetOperatorPort())
-
 	logrus.Infof("Funding ethereum accounts owned by the Oracle so that it can fulfill requests.")
 	err = chainlinkNetwork.FundOracleEthAccounts()
 	if err != nil {
