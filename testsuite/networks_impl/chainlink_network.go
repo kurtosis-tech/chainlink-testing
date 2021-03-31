@@ -478,8 +478,8 @@ func deployOcrOracleContract(validatorClient *ethclient.Client, linkContractAddr
 	gethBootstrapperKey := "{\"address\":\"8ea1441a74ffbe9504a8cb3f7e4b7118d8ccfc56\",\"crypto\":{\"cipher\":\"aes-128-ctr\",\"ciphertext\":\"2dfb66792b39f458365f8604e959d000a57a44c5c9e935130da75edb21571666\",\"cipherparams\":{\"iv\":\"c75546ec881dcd668e7d9cb4f75d24f3\"},\"kdf\":\"scrypt\",\"kdfparams\":{\"dklen\":32,\"n\":262144,\"p\":1,\"r\":8,\"salt\":\"4cb212065dfaba68e7a2e99f42d2bf4e10edc5793390424bfeb4c73a381dbdfd\"},\"mac\":\"98c469923b668bd1655e8acdb40b7d9d5ceae53058b5fd706064595d10b67142\"},\"id\":\"f64bbf7e-e34f-442e-91b9-9bc0a1190edf\",\"version\":3}\n"
 	password := "password"
 
-	// TODO we're just guessing at the chain ID of 1 here!!
-	signedTransactor, err := bind.NewTransactorWithChainID(strings.NewReader(gethBootstrapperKey), password, big.NewInt(1))
+	// TODO THIS IS A BIG HACK - WE KNOW THAT THE CHAIN ID == 9 FROM THE GENESIS CONFIG, but we need to pipe it through properly!!
+	signedTransactor, err := bind.NewTransactorWithChainID(strings.NewReader(gethBootstrapperKey), password, big.NewInt(9))
 	if err != nil {
 		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred creating a transactor to sign the transaction")
 	}
