@@ -16,13 +16,15 @@ import (
 )
 
 const (
-	ethereumBootstrapperId  services.ServiceID = "ethereum-bootstrapper"
 	gethServiceIdPrefix                        = "ethereum-node-"
 	jobCompletedStatus      string             = "completed"
 	linkContractDeployerId  services.ServiceID = "link-contract-deployer"
-	postgresIdPrefix        services.ServiceID = "postgres-"
+	postgresIdPrefix        = "postgres-"
 	priceFeedServerId       services.ServiceID = "price-feed-server"
-	chainlinkOracleIdPrefix services.ServiceID = "chainlink-oracle-"
+	chainlinkOracleIdPrefix = "chainlink-oracle-"
+
+	// Number of nodes beyond the bootstrapper
+	numExtraGethNodes = 2
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
 	waitForStartupMaxNumPolls = 30
@@ -47,8 +49,7 @@ type ChainlinkNetwork struct {
 	networkCtx                         *networks.NetworkContext
 	gethDataDirArtifactId              services.FilesArtifactID
 	gethServiceImage                   string
-	gethBootstrapperService            *geth.GethService
-	gethAdditionalServices             map[services.ServiceID]*geth.GethService
+	gethServices map[services.ServiceID]*geth.GethService
 	nextGethServiceId                  int
 	linkContractAddress                string
 	oracleContractAddress              string
@@ -70,8 +71,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		networkCtx:                         networkCtx,
 		gethDataDirArtifactId:              gethDataDirArtifactId,
 		gethServiceImage:                   gethServiceImage,
-		gethBootstrapperService:            nil,
-		gethAdditionalServices:             map[services.ServiceID]*geth.GethService{},
+		gethServices:                       map[services.ServiceID]*geth.GethService{},
 		nextGethServiceId:                  0,
 		linkContractAddress:                "",
 		oracleContractAddress:              "",
@@ -87,58 +87,175 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 	}
 }
 
-func (network *ChainlinkNetwork) AddGethBootstrapper() error {
-	if network.gethBootstrapperService != nil {
-		return stacktrace.NewError("Cannot add Geth bootstrapper service to network; Geth bootstrapper already exists!")
+func (network *ChainlinkNetwork) Setup() error {
+	var gethBootstrapper *geth.GethService  // Nil indicates there is no bootstrapper
+	for i := 0; i < numExtraGethNodes; i++ {
+		serviceId := services.ServiceID(fmt.Sprintf("%v%v", gethServiceIdPrefix, i))
+		service, err := network.addGethService(serviceId, nil)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred adding Geth service '%v'", serviceId)
+		}
+		if gethBootstrapper == nil {
+			gethBootstrapper = service
+		}
+		network.gethServices[serviceId] = service
 	}
 
-	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, nil, true)
-	uncastedBootstrapper, checker, err := network.networkCtx.AddService(ethereumBootstrapperId, initializer)
+	logrus.Infof("Manually connecting all Ethereum nodes together and verifying connectivity...")
+	if err := manuallyConnectGethNodesAndVerifyConnectivity(network.gethServices); err != nil {
+		return stacktrace.Propagate(err, "An error occurred manually connecting the Geth nodes and verifying connectivity")
+	}
+	logrus.Infof("Ethereum nodes connected and connectivity verified")
+
+	// TODO rename this
+	logrus.Info("Starting contract deployer service...")
+	contractDeployerService, err := startContractDeployerService(network.networkCtx, network.linkContractDeployerImage)
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred adding the bootstrapper service")
+		return stacktrace.Propagate(err, "An error occurred starting the contract deployer service")
 	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return stacktrace.Propagate(err, "An error occurred waiting for the bootstrapper service to start")
+	logrus.Info("Contract deployer service started")
+
+	logrus.Infof("Deploying LINK contracts on the testnet...")
+	// We could pick any node here, but we go with the bootstrapper arbitrarily.
+	linkContractAddress, oracleContractAddress, err := contractDeployerService.DeployContract(
+		gethBootstrapper.GetIPAddress(),
+		strconv.Itoa(gethBootstrapper.GetRpcPort()),
+	)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")
 	}
-	castedGethBootstrapperService := uncastedBootstrapper.(*geth.GethService)
-	network.gethBootstrapperService = castedGethBootstrapperService
+	logrus.Infof("LINK contract deployed")
+
+	logrus.Info("Funding LINK wallet...")
+	if err := network.linkContractDeployerService.FundLinkWalletContract(); err != nil {
+		return stacktrace.Propagate(err, "An error occurred funding an initial LINK wallet on the testnet")
+	}
+	logrus.Info("LINK wallet funded")
+
+}
+
+/*
+	Runs scripts on the contract deployer container which request data from the oracle.
+*/
+func (network *ChainlinkNetwork) RequestData() error {
+	if len(network.chainlinkOracleServices) == 0 {
+		return stacktrace.NewError("Tried to request data before deploying any oracle services")
+	}
+	if network.oracleContractAddress == "" {
+		return stacktrace.NewError("Tried to request data before deploying the oracle contract.")
+	}
+	if network.linkContractDeployerService == nil {
+		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
+	}
+	if network.priceFeedServer == nil {
+		return stacktrace.NewError("Tried to request data before deploying the in-network price feed server service.")
+	}
+	// TODO handle multiple
+	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthKeys()
+	if err != nil {
+		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
+	}
+
+	for _, ethAccount := range oracleEthAccounts {
+		ethAddress := ethAccount.Attributes.Address
+		logrus.Infof("Setting permissions for address %v to run code from oracle contract %v.",
+			ethAddress,
+			network.oracleContractAddress)
+		err = network.linkContractDeployerService.SetFulfillmentPermissions(
+			network.GetBootstrapper().GetIPAddress(),
+			strconv.Itoa(network.GetBootstrapper().GetRpcPort()),
+			network.oracleContractAddress,
+			ethAddress,
+		)
+		if err != nil {
+			return stacktrace.Propagate(err, "Error occurred setting fulfillent permissions.")
+		}
+	}
+
+	logrus.Infof("Calling the oracle contract to run job %v.", network.priceFeedJobId)
+
+	priceFeedUrl := fmt.Sprintf("http://%v:%v/", network.priceFeedServer.GetIPAddress(), network.priceFeedServer.GetHTTPPort())
+	// Request data from the oracle smart contract, starting a job.
+	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId, priceFeedUrl)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred requesting data from the oracle contract on-chain.")
+	}
+	// Poll to see if the oracle job has completed.
+	numPolls := 0
+	jobCompleted := false
+	for !jobCompleted && numPolls < waitForJobCompletionPolls {
+		time.Sleep(waitForJobCompletionTimeBetweenPolls)
+		// TODO Handle multiple
+		runs, err := network.chainlinkOracleServices[0].GetRuns()
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred getting data about job runs from the oracle service.")
+		}
+		for _, run := range(runs) {
+			// If the oracle has a completed run with the same jobId as the priceFeed, job is complete.
+			if run.Attributes.JobId == network.priceFeedJobId {
+				jobCompleted = jobCompleted || run.Attributes.Status == jobCompletedStatus
+			}
+		}
+		numPolls += 1
+	}
+	if !jobCompleted {
+		return stacktrace.NewError("Oracle job %v failed.", network.priceFeedJobId)
+	}
 	return nil
 }
 
-func (network *ChainlinkNetwork) AddAdditionalGethService() (services.ServiceID, error) {
-	if (network.gethBootstrapperService == nil) {
-		return "", stacktrace.NewError("Cannot add additional Geth node to network; no bootstrap node exists")
-	}
 
-	serviceIdStr := gethServiceIdPrefix + strconv.Itoa(network.nextGethServiceId)
-	network.nextGethServiceId = network.nextGethServiceId + 1
-	serviceId := services.ServiceID(serviceIdStr)
-
-	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, network.gethBootstrapperService, false)
-	uncastedGethService, checker, err := network.networkCtx.AddService(serviceId, initializer)
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred adding the ethereum node")
-	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred waiting for the ethereum node to start")
-	}
-	castedGethService := uncastedGethService.(*geth.GethService)
-
-	network.gethAdditionalServices[serviceId] = castedGethService
-	return serviceId, nil
+func (network *ChainlinkNetwork) GetBootstrapper() *geth.GethService {
+	return network.gethBootstrapperService
 }
 
-func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
-	allServices := map[services.ServiceID]*geth.GethService{
-		ethereumBootstrapperId: network.gethBootstrapperService,
-	}
-	for id, service := range network.gethAdditionalServices {
-		allServices[id] = service
-	}
+func (network *ChainlinkNetwork) GetLinkContractAddress() string {
+	return network.linkContractAddress
+}
 
+func (network *ChainlinkNetwork) GetChainlinkOracles() []*chainlink_oracle.ChainlinkOracleService {
+	return network.chainlinkOracleServices
+}
+
+func (network *ChainlinkNetwork) AddPriceFeedServer() error {
+	initializer := price_feed_server.NewPriceFeedServerInitializer(network.priceFeedServerImage)
+	uncastedPriceFeedServer, checker, err := network.networkCtx.AddService(priceFeedServerId, initializer)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the price feed server.")
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for the price feed server to start")
+	}
+	castedPriceFeedServer := uncastedPriceFeedServer.(*price_feed_server.PriceFeedServer)
+	network.priceFeedServer = castedPriceFeedServer
+	return nil
+}
+
+
+// ====================================================================================================
+//                                          Private helper functions
+// ====================================================================================================
+// NOTE: Leave the bootstrapper nil to create a bootstrapper node
+func (network ChainlinkNetwork) addGethService(serviceId services.ServiceID, bootstrapper *geth.GethService) (*geth.GethService, error) {
+	initializer := geth.NewGethContainerInitializer(network.gethServiceImage, network.gethDataDirArtifactId, bootstrapper, true)
+	uncastedService, checker, err := network.networkCtx.AddService(serviceId, initializer)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred adding Geth service with ID '%v'", serviceId)
+	}
+	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred waiting for Geth service with ID '%v' to start", serviceId)
+	}
+	castedService, ok := uncastedService.(*geth.GethService)
+	if !ok {
+		return nil, stacktrace.NewError("An error occurred downcasting generic service interface to Geth service for service '%v'", serviceId)
+	}
+	return castedService, nil
+}
+
+func manuallyConnectGethNodesAndVerifyConnectivity(gethServices map[services.ServiceID]*geth.GethService) error {
 	// Connect all nodes to each other
-	for nodeId, nodeGethService := range allServices {
-		for peerId, peerGethService := range allServices {
+	for nodeId, nodeGethService := range gethServices {
+		for peerId, peerGethService := range gethServices {
 			if nodeId == peerId {
 				continue
 			}
@@ -157,8 +274,8 @@ func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 	}
 
 	// Now check that all nodes have all other nodes as peers
-	expectedNumPeers := len(allServices) - 1
-	for nodeId, nodeGethService := range allServices {
+	expectedNumPeers := len(gethServices) - 1
+	for nodeId, nodeGethService := range gethServices {
 		seesAllPeers := false
 		numVerificationsAttempted := 0
 		for !seesAllPeers && numVerificationsAttempted < maxNumGethValidatorConnectednessVerifications {
@@ -181,42 +298,22 @@ func (network *ChainlinkNetwork) ManuallyConnectPeers() error {
 	return nil
 }
 
-func (network *ChainlinkNetwork) DeployChainlinkContract() error {
-	if len(network.gethAdditionalServices) == 0 {
-		return stacktrace.NewError("Can not deploy contract because the network does not have non-bootstrapper nodes yet.")
-	}
-
-	// We could pick any node here, but we go with the bootstrapper arbitrarily.
-	deployService := network.gethBootstrapperService
-	initializer := chainlink_contract_deployer.NewChainlinkContractDeployerInitializer(network.linkContractDeployerImage)
-	uncastedContractDeployer, checker, err := network.networkCtx.AddService(linkContractDeployerId, initializer)
+func startContractDeployerService(
+		networkCtx *networks.NetworkContext,
+		dockerImage string) (*chainlink_contract_deployer.ChainlinkContractDeployerService, error){
+	initializer := chainlink_contract_deployer.NewChainlinkContractDeployerInitializer(dockerImage)
+	uncastedService, checker, err := networkCtx.AddService(linkContractDeployerId, initializer)
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred adding the $LINK contract deployer to the network.")
+		return nil, stacktrace.Propagate(err, "An error occurred adding the $LINK contract deployer to the network.")
 	}
 	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return stacktrace.Propagate(err, "An error occurred waiting for the $LINK contract deployer service to start")
+		return nil, stacktrace.Propagate(err, "An error occurred waiting for the $LINK contract deployer service to start")
 	}
-	castedContractDeployer := uncastedContractDeployer.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
-	network.linkContractDeployerService = castedContractDeployer
-
-	linkContractAddress, oracleContractAddress, err := network.linkContractDeployerService.DeployContract(deployService.GetIPAddress(), strconv.Itoa(deployService.GetRpcPort()))
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred deploying the $LINK contract to the testnet.")
+	castedService, ok := uncastedService.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
+	if !ok {
+		return nil, stacktrace.Propagate(err, "An error occurred downcasting a generic service to the contract deployer service")
 	}
-	network.linkContractAddress = linkContractAddress
-	network.oracleContractAddress = oracleContractAddress
-	return nil
-}
-
-func (network *ChainlinkNetwork) FundLinkWallet() error {
-	if network.linkContractDeployerService == nil {
-		return stacktrace.NewError("Tried to fund $LINK wallet before deploying $LINK contract.")
-	}
-	err := network.linkContractDeployerService.FundLinkWalletContract()
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred funding an initial $LINK wallet on the testnet.")
-	}
-	return nil
+	return castedService,nil
 }
 
 func (network *ChainlinkNetwork) AddOracleBootstrapper() error {
@@ -356,116 +453,6 @@ func (network *ChainlinkNetwork) DeployOracleJobs() error {
 	return nil
 }
 
-
-/*
-	Runs scripts on the contract deployer container which request data from the oracle.
- */
-func (network *ChainlinkNetwork) RequestData() error {
-	if len(network.chainlinkOracleServices) == 0 {
-		return stacktrace.NewError("Tried to request data before deploying any oracle services")
-	}
-	if network.oracleContractAddress == "" {
-		return stacktrace.NewError("Tried to request data before deploying the oracle contract.")
-	}
-	if network.linkContractDeployerService == nil {
-		return stacktrace.NewError("Tried to request data before deploying the link contract deployer service.")
-	}
-	if network.priceFeedServer == nil {
-		return stacktrace.NewError("Tried to request data before deploying the in-network price feed server service.")
-	}
-	// TODO handle multiple
-	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthKeys()
-	if err != nil {
-		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
-	}
-
-	for _, ethAccount := range oracleEthAccounts {
-		ethAddress := ethAccount.Attributes.Address
-		logrus.Infof("Setting permissions for address %v to run code from oracle contract %v.",
-			ethAddress,
-			network.oracleContractAddress)
-		err = network.linkContractDeployerService.SetFulfillmentPermissions(
-			network.GetBootstrapper().GetIPAddress(),
-			strconv.Itoa(network.GetBootstrapper().GetRpcPort()),
-			network.oracleContractAddress,
-			ethAddress,
-		)
-		if err != nil {
-			return stacktrace.Propagate(err, "Error occurred setting fulfillent permissions.")
-		}
-	}
-
-	logrus.Infof("Calling the oracle contract to run job %v.", network.priceFeedJobId)
-
-	priceFeedUrl := fmt.Sprintf("http://%v:%v/", network.priceFeedServer.GetIPAddress(), network.priceFeedServer.GetHTTPPort())
-	// Request data from the oracle smart contract, starting a job.
-	err = network.linkContractDeployerService.RunRequestDataScript(network.oracleContractAddress, network.priceFeedJobId, priceFeedUrl)
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred requesting data from the oracle contract on-chain.")
-	}
-	// Poll to see if the oracle job has completed.
-	numPolls := 0
-	jobCompleted := false
-	for !jobCompleted && numPolls < waitForJobCompletionPolls {
-		time.Sleep(waitForJobCompletionTimeBetweenPolls)
-		// TODO Handle multiple
-		runs, err := network.chainlinkOracleServices[0].GetRuns()
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting data about job runs from the oracle service.")
-		}
-		for _, run := range(runs) {
-			// If the oracle has a completed run with the same jobId as the priceFeed, job is complete.
-			if run.Attributes.JobId == network.priceFeedJobId {
-				jobCompleted = jobCompleted || run.Attributes.Status == jobCompletedStatus
-			}
-		}
-		numPolls += 1
-	}
-	if !jobCompleted {
-		return stacktrace.NewError("Oracle job %v failed.", network.priceFeedJobId)
-	}
-	return nil
-}
-
-
-func (network *ChainlinkNetwork) GetBootstrapper() *geth.GethService {
-	return network.gethBootstrapperService
-}
-
-func (network *ChainlinkNetwork) GetLinkContractAddress() string {
-	return network.linkContractAddress
-}
-
-func (network *ChainlinkNetwork) GetChainlinkOracles() []*chainlink_oracle.ChainlinkOracleService {
-	return network.chainlinkOracleServices
-}
-
-func (network *ChainlinkNetwork) AddPriceFeedServer() error {
-	initializer := price_feed_server.NewPriceFeedServerInitializer(network.priceFeedServerImage)
-	uncastedPriceFeedServer, checker, err := network.networkCtx.AddService(priceFeedServerId, initializer)
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred adding the price feed server.")
-	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return stacktrace.Propagate(err, "An error occurred waiting for the price feed server to start")
-	}
-	castedPriceFeedServer := uncastedPriceFeedServer.(*price_feed_server.PriceFeedServer)
-	network.priceFeedServer = castedPriceFeedServer
-	return nil
-}
-
-
-func (network *ChainlinkNetwork) GetAdditionalGethService(serviceId services.ServiceID) (*geth.GethService, error) {
-	service, found := network.gethAdditionalServices[serviceId]
-	if !found {
-		return nil, stacktrace.NewError("No geth service with ID '%v' has been added", serviceId)
-	}
-	return service, nil
-}
-
-// ====================================================================================================
-//                                          Private helper functions
-// ====================================================================================================
 func addOracleService(
 		networkCtx *networks.NetworkContext,
 		linkContractAddr string,

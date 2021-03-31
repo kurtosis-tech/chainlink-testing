@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	numberOfExtraNodes = 2
 
 	gethDataDirArtifactId  services.FilesArtifactID = "geth-data-dir"
 	gethDataDirArtifactUrl                          = "https://kurtosis-public-access.s3.amazonaws.com/client-artifacts/chainlink/geth-data-dir.tgz"
@@ -72,24 +71,6 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 func (test *LinkContractInitializationTest) Run(network networks.Network, testCtx testsuite.TestContext) {
 	// Necessary because Go doesn't have generics
 	chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
-
-	logrus.Infof("Manually connecting all nodes of the Ethereum network.")
-	err := chainlinkNetwork.ManuallyConnectPeers()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Failed to manually connect peers in the network."))
-	}
-
-	logrus.Infof("Deploying $LINK contracts on the testnet.")
-	err = chainlinkNetwork.DeployChainlinkContract()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Failed to deploy the $LINK contract on the network."))
-	}
-
-	logrus.Infof("Funding a $LINK wallet contract on the testnet.")
-	err = chainlinkNetwork.FundLinkWallet()
-	if err != nil {
-		testCtx.Fatal(stacktrace.Propagate(err, "Failed to fund a $LINK wallet on the network."))
-	}
 
 	logrus.Infof("Starting a Chainlink Oracle node, using $LINK contract deployed at %v", chainlinkNetwork.GetLinkContractAddress())
 	err = chainlinkNetwork.AddOracleServices()
