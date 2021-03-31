@@ -1,6 +1,7 @@
 package networks_impl
 
 import (
+	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -49,9 +50,6 @@ const (
 	// Number of oracle nodes (including bootstrapper)
 	numOracleNodes = 3
 
-	waitForJobCompletionTimeBetweenPolls = 1 * time.Second
-	waitForJobCompletionPolls = 30
-
 	// Oracle nodes will have multiple ETH keys/addresses
 	// This is the index of the transmitter address
 	transmitterAddressIndex = 0
@@ -59,6 +57,7 @@ const (
 	// These prefixes need to be stripped off the OCR key bundle attributes
 	onChainSigningAddrStrPrefix = "ocrsad_"
 	offChainPublicKeyStrPrefix = "ocroff_"
+	configPublicKeyStrPrefix = "ocrcfg_"
 )
 
 type ChainlinkNetwork struct {
@@ -539,7 +538,8 @@ func configureOcrContract(
 		oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) error {
 	oracleIdentities := []confighelper.OracleIdentityExtra{}
 	for serviceId, oracleService := range oracleServices {
-		// TODO REPLACE ALL THESE CALLS WITH CALLS TO ACTUAL ORACLE CLIENT
+		// TODO Replace alllllll the handcrafting of OracleIdentityExtra inside here with a call to the Chainlink client
+		//  The desired method is likely client.Client.ListOCRKeyBundles
 		ethKeys, err := oracleService.GetEthKeys()
 		if err != nil {
 			return stacktrace.Propagate(err, "An error occurred getting ETH addresses for oracle '%v'", serviceId)
@@ -577,22 +577,33 @@ func configureOcrContract(
 		)
 		onChainSigningAddr := types.OnChainSigningAddress(common.HexToAddress(trimmedOnChainSigningAddrStr))
 		transmitterAddr := common.HexToAddress(transmitterKey.Attributes.Address)
-		trimmedOffChainPubKeyStr := strings.TrimPrefix(ocrKeyBundle.Attributes.OffChainPublicKey, offChainPublicKeyStrPrefix)
-		offChainPubKeyBytes, err := hex.DecodeString(trimmedOffChainPubKeyStr)
+		offChainPubKey, err := parseOcrPubKeyHexStr(ocrKeyBundle.Attributes.OffChainPublicKey, offChainPublicKeyStrPrefix)
 		if err != nil {
-			return stacktrace.Propagate(err, "Could not hex-decode offchain pub key '%v'", trimmedOffChainPubKeyStr)
+			return stacktrace.Propagate(err, "An error occurred parsing offchain pub key hex string")
 		}
-		offChainPubKey := types.OffchainPublicKey(offChainPubKeyBytes)
+		configPubKey, err := parseOcrPubKeyHexStr(ocrKeyBundle.Attributes.ConfigPublicKey, configPublicKeyStrPrefix)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred parsing config pub key hex string")
+		}
+		if len(configPubKey) != len(types.SharedSecretEncryptionPublicKey{}) {
+			return stacktrace.NewError(
+				"Config pubkey must be of length %v but was length %v",
+				len(types.SharedSecretEncryptionPublicKey{}),
+				len(configPubKey))
+		}
+		var sharedSecretEncryptionPubKey types.SharedSecretEncryptionPublicKey
+		copy(sharedSecretEncryptionPubKey[:], configPubKey)
 
 		identity := confighelper.OracleIdentityExtra{
 			OracleIdentity:                  confighelper.OracleIdentity{
 				OnChainSigningAddress: onChainSigningAddr,
 				TransmitAddress:       transmitterAddr,
-				OffchainPublicKey:     offChainPubKey,
+				OffchainPublicKey:     types.OffchainPublicKey(offChainPubKey),
 				PeerID:                p2pKey.Attributes.PeerId,
 			},
-			SharedSecretEncryptionPublicKey: types.SharedSecretEncryptionPublicKey{},
+			SharedSecretEncryptionPublicKey: sharedSecretEncryptionPubKey,
 		}
+
 		oracleIdentities = append(oracleIdentities, identity)
 	}
 
@@ -617,6 +628,16 @@ func configureOcrContract(
 		return stacktrace.Propagate(err, "An error occurred calling SetConfig on the OCR contract")
 	}
 	return nil
+}
+
+// NOTE: The OCR keys always come with a prefix, which needs to be removed before hex decoding
+func parseOcrPubKeyHexStr(pubKeyHexStr string, prefix string) (ed25519.PublicKey, error) {
+	trimmedHexStr := strings.TrimPrefix(pubKeyHexStr, prefix)
+	pubKeyBytes, err := hex.DecodeString(trimmedHexStr)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Could not hex-decode pub key '%v'", trimmedHexStr)
+	}
+	return pubKeyBytes, nil
 }
 
 /*
