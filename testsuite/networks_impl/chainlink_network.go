@@ -22,6 +22,7 @@ import (
 	"github.com/smartcontractkit/libocr/offchainreporting/confighelper"
 	"github.com/smartcontractkit/libocr/offchainreporting/types"
 	"math/big"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +40,7 @@ const (
 	numGethNodes = 3
 
 	waitForStartupTimeBetweenPolls = 1 * time.Second
-	waitForStartupMaxNumPolls = 30
+	waitForStartupMaxNumPolls = 45 // If 30, we get occasional timeouts on oracle startup
 
 	maxNumGethValidatorConnectednessVerifications = 3
 	timeBetweenGethValidatorConnectednessVerifications = 1 * time.Second
@@ -688,7 +689,7 @@ func deployOcrJobsOnOracles(
 			return stacktrace.NewError("Couldn't find oracle identity for oracle with service ID '%v'", serviceId)
 		}
 		isBootstrapper := serviceId == bootstrapperServiceId
-		jobSpecTomlStr := generateOcrJobSpecTomlStr(
+		jobSpecTomlStr, err := generateOcrJobSpecTomlStr(
 			ocrContractAddr,
 			bootstrapperService.GetIPAddress(),
 			bootstrapperService.GetPeerToPeerListenPort(),
@@ -698,6 +699,10 @@ func deployOcrJobsOnOracles(
 			identity.ocrKeyBundleId,
 			identity.inner.TransmitAddress,
 			datasourceUrl)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred generating the OCR job spec TOML string")
+		}
+		logrus.Debugf("Job spec TOML string:\n%v", jobSpecTomlStr)
 
 		if err := oracleService.SetJobSpec(jobSpecTomlStr); err != nil {
 			return stacktrace.Propagate(err, "An error occurred deploying OCR job spec on oracle '%v'", serviceId)
@@ -765,13 +770,13 @@ func generateOcrJobSpecTomlStr(
 		isBootstrapPeer bool,
 		nodeOcrKeyBundleId string,
 		nodeEthTransmitterAddress common.Address,
-		datasourceUrl string) string {
+		datasourceUrlStr string) (string, error) {
 	// TODO Add an EthInt256 step to this??
 	// TODO Modify the tcp port for the p2pBootstrapPeers??
 	// TODO Replace this string with an actual structured object from https://github.com/smartcontractkit/chainlink/blob/2f2dc24f3ef6a63a47d7a3a4d2c23239d89555c0/core/services/job/models.go#L101
-	return fmt.Sprintf(
-		`
-type               = "offchainreporting"
+
+	result := fmt.Sprintf(
+		`type               = "offchainreporting"
 schemaVersion      = 1
 contractAddress    = "%v"
 p2pBootstrapPeers  = [
@@ -786,17 +791,7 @@ observationTimeout = "10s"
 blockchainTimeout  = "20s"
 contractConfigTrackerSubscribeInterval = "2m"
 contractConfigTrackerPollInterval = "1m"
-contractConfigConfirmations = 3
-observationSource = """
-	// data source 1
-	ds1          [type=http method=POST url="(%v)" requestData="{}"];
-	ds1_parse    [type=jsonparse path="data,result"];
-	ds1_multiply [type=multiply times=10];
-
-	ds1 -> ds1_parse -> ds1_multiply -> answer;
-	answer [type=median];
-"""
-		`,
+contractConfigConfirmations = 3`,
 		oracleContractAddress.Hex(),
 		bootstrapIpAddr,
 		bootstrapPeerToPeerListenPort,
@@ -804,6 +799,27 @@ observationSource = """
 		nodePeerToPeerId,
 		isBootstrapPeer,
 		nodeOcrKeyBundleId,
-		nodeEthTransmitterAddress.Hex(),
-		datasourceUrl)
+		nodeEthTransmitterAddress.Hex())
+
+	// Only non-bootstrap peers have observation source according to:
+	// https://github.com/smartcontractkit/chainlink/blob/c08a98c74ec591b471b7a960af9019b9fbb1b6b3/core/services/offchainreporting/validate.go#L80
+	if !isBootstrapPeer {
+		datasourceUrl, err := url.Parse(datasourceUrlStr)
+		if err != nil {
+			return "", stacktrace.Propagate(err, "An error occurred parsing datasource URL string '%v'", datasourceUrlStr)
+		}
+		observationSourceStr := fmt.Sprintf(`observationSource = """
+	// data source 1
+	ds1          [type=%v method=POST url="%v" requestData="{}"];
+	ds1_parse    [type=jsonparse path="USD"];
+	ds1_multiply [type=multiply times=10];
+
+	ds1 -> ds1_parse -> ds1_multiply -> answer;
+	answer [type=median];
+"""`,
+			datasourceUrl.Scheme,
+			datasourceUrlStr)
+		result = fmt.Sprintf("%v\n%v", result, observationSourceStr)
+	}
+	return result, nil
 }
