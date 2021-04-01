@@ -27,6 +27,12 @@ const (
 	minOutgoingConfirmations = 12
 	minIncomingConfirmations = 0
 
+	// TODO Parameterize this
+	isOffchainReportingEnabled = true
+
+	// Only set if offchain reporting is enabled
+	peer2PeerListenPort = 1234
+
 	operatorUiPort = 6688
 )
 
@@ -38,8 +44,12 @@ type ChainlinkOracleInitializer struct {
 	postgresService	*postgres.PostgresService
 }
 
-func NewChainlinkOracleContainerInitializer(dockerImage string, linkContractAddress string, oracleContractAddress string,
-	gethClient *geth.GethService, postgresService *postgres.PostgresService) *ChainlinkOracleInitializer {
+func NewChainlinkOracleContainerInitializer(
+		dockerImage string,
+		linkContractAddress string,
+		oracleContractAddress string,
+		gethClient *geth.GethService,
+		postgresService *postgres.PostgresService) *ChainlinkOracleInitializer {
 	return &ChainlinkOracleInitializer{
 		dockerImage:         dockerImage,
 		linkContractAddress: linkContractAddress,
@@ -56,6 +66,7 @@ func (initializer ChainlinkOracleInitializer) GetDockerImage() string {
 func (initializer ChainlinkOracleInitializer) GetUsedPorts() map[string]bool {
 	return map[string]bool{
 		fmt.Sprintf("%v/tcp", operatorUiPort): true,
+		fmt.Sprintf("%v/tcp", peer2PeerListenPort): true,
 	}
 }
 
@@ -72,7 +83,7 @@ func (initializer ChainlinkOracleInitializer) GetFilesToGenerate() map[string]bo
 }
 
 func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() (map[string]string, error) {
-	return map[string]string {
+	result := map[string]string {
 		"ROOT": "/chainlink",
 		"LOG_LEVEL": "debug",
 		"ETH_CHAIN_ID": fmt.Sprintf("%v", genesis.ChainId),
@@ -88,12 +99,14 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"GAS_UPDATER_ENABLED": "true",
 		"GAS_UPDATER_BLOCK_DELAY": strconv.Itoa(gasUpdaterDelay),
 		"ALLOW_ORIGINS":"*",
-		// TODO Set CHAINLINK_DEV = true, which disables disables ocr spec validation so we can have fast polling for the test.
+		"FEATURE_OFFCHAIN_REPORTING": strconv.FormatBool(isOffchainReportingEnabled),
+		"P2P_LISTEN_PORT": strconv.Itoa(peer2PeerListenPort), // Required when offchain reporting == true
 		"ETH_URL": fmt.Sprintf("ws://%v:%v", initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort()),
 		"DATABASE_URL": fmt.Sprintf("postgresql://%v:%v@%v:%v/%v?sslmode=disable",
 			initializer.postgresService.GetSuperUsername(), initializer.postgresService.GetSuperUserPassword(),
 			initializer.postgresService.GetIPAddress(), initializer.postgresService.GetPort(), initializer.postgresService.GetDatabaseName()),
-	}, nil
+	}
+	return result, nil
 }
 
 func (initializer ChainlinkOracleInitializer) InitializeGeneratedFiles(mountedFiles map[string]*os.File) error {

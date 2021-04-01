@@ -109,55 +109,13 @@ func (service *ChainlinkOracleService) GetOCRKeyBundles() ([]OracleOcrKeyBundle,
 }
 
 // TODO Replace the hand-crafted POST wtih a call to the Chainlink client.Client
-func (service *ChainlinkOracleService) SetJobSpec(
-		oracleContractAddress string,
-		bootstrapperIpAddr string,
-		bootstrapperPeerId string,
-		datasourceUrl string) (jobId string, err error) {
+func (service *ChainlinkOracleService) SetJobSpec(tomlSpecStr string) (jobId string, err error) {
 	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
 
-	// Transmitter ETH address
-	ethKeys, err := service.GetEthKeys()
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred getting the ETH keys from the oracle")
-	}
-	transmitterKey := ethKeys[transmitterEthKeyIndex]
-	transmitterAddress := transmitterKey.Attributes.Address
-
-	// P2P ID
-	allPeer2PeerKeys, err := service.GetPeerToPeerKeys()
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred getting the P2P keys from the oracle")
-	}
-	if len(allPeer2PeerKeys) != 1 {
-		return "", stacktrace.NewError("Expected exactly 1 P2P key but found %v", len(allPeer2PeerKeys))
-	}
-	peer2PeerKey := allPeer2PeerKeys[0]
-	peer2PeerId := peer2PeerKey.Attributes.PeerId
-
-	// OCR key bundle ID
-	allOcrKeyBundles, err := service.GetOCRKeyBundles()
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred getting the OCR key bundles from the oracle")
-	}
-	if len(allOcrKeyBundles) != 1 {
-		return "", stacktrace.NewError("Expected exactly 1 OCR key bundle but found %v", len(allOcrKeyBundles))
-	}
-	ocrKeyBundle := allOcrKeyBundles[0]
-	ocrKeyBundleId := ocrKeyBundle.Attributes.Id
-
-	jobSpecTomlStr := generateJobSpec(
-		oracleContractAddress,
-		bootstrapperIpAddr,
-		bootstrapperPeerId,
-		peer2PeerId,
-		ocrKeyBundleId,
-		transmitterAddress,
-		datasourceUrl)
-	jobSpecReq := CreateTomlJobRequest{TOML: jobSpecTomlStr}
+	jobSpecReq := CreateTomlJobRequest{TOML: tomlSpecStr}
 	serializedJobSpecReq, err := json.Marshal(jobSpecReq)
 	if err != nil {
 		return "", stacktrace.Propagate(err, "An error occurred serializing the following job spec request object to JSON: %+v", jobSpecReq)
@@ -170,14 +128,14 @@ func (service *ChainlinkOracleService) SetJobSpec(
 
 	resp, err := client.Post(url, jsonMimeType, bytes.NewBuffer(serializedJobSpecReq))
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the Oracle.")
+		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the oracle")
 	}
 	jobInitiatedResponse := new(OracleJobInitiatedResponse)
 	defer resp.Body.Close()
 
 	err = parseAndLogResponse(resp, jobInitiatedResponse)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to parse Oracle response into a struct.")
+		return "", stacktrace.Propagate(err, "Failed to parse oracle response into a struct")
 	}
 	return jobInitiatedResponse.Data.Id, nil
 }
@@ -240,85 +198,6 @@ func (service *ChainlinkOracleService) getApiRequestUrl(endpoint string) string 
 		service.GetIPAddress(),
 		service.GetOperatorPort(),
 		endpoint)
-}
-
-// TODO Delete this
-/*
-func generateJobSpec(oracleContractAddress string) string {
-	return fmt.Sprintf(`{
-		  "initiators": [
-			{
-			  "type": "RunLog",
-			  "params": { "address": "%v" }
-			}
-		  ],
-		  "tasks": [
-				{
-				  "type": "HttpGetWithUnrestrictedNetworkAccess"
-				},
-				{
-				  "type": "JsonParse"
-				},
-				{
-				  "type": "Multiply"
-				},
-				{
-				  "type": "EthInt256"
-				},
-				{
-				  "type": "EthTx"
-				}
-		  ]
-		}`, oracleContractAddress)
-}
-*/
-
-func generateJobSpec(
-			oracleContractAddress string,
-			bootstrapIpAddr string,
-			bootstrapPeerToPeerId string,
-			nodePeerToPeerId string,
-			nodeOcrKeyBundleId string,
-			nodeEthTransmitterAddress string,
-			datasourceUrl string) string {
-	// TODO Add an EthInt256 step to this??
-	// TODO Modify the tcp port for the p2pBootstrapPeers??
-	// TODO Replace this string with an actual structured object from https://github.com/smartcontractkit/chainlink/blob/2f2dc24f3ef6a63a47d7a3a4d2c23239d89555c0/core/services/job/models.go#L101
-	return fmt.Sprintf(
-			`
-type               = "offchainreporting"
-schemaVersion      = 1
-contractAddress    = "%v"
-p2pBootstrapPeers  = [
-	"/dns4/%v/tcp/1234/p2p/%v",
-]
-p2pPeerID          = "%v"
-isBootstrapPeer    = false
-keyBundleID        = "%v"
-monitoringEndpoint = "chain.link:4321"
-transmitterAddress = "%v"
-observationTimeout = "10s"
-blockchainTimeout  = "20s"
-contractConfigTrackerSubscribeInterval = "2m"
-contractConfigTrackerPollInterval = "1m"
-contractConfigConfirmations = 3
-observationSource = """
-	// data source 1
-	ds1          [type=http method=POST url="(%v)" requestData="{}"];
-	ds1_parse    [type=jsonparse path="data,result"];
-	ds1_multiply [type=multiply times=10];
-
-	ds1 -> ds1_parse -> ds1_multiply -> answer;
-	answer [type=median];
-"""
-		`,
-		oracleContractAddress,
-		bootstrapIpAddr,
-		bootstrapPeerToPeerId,
-		nodePeerToPeerId,
-		nodeOcrKeyBundleId,
-		nodeEthTransmitterAddress,
-		datasourceUrl)
 }
 
 func (service *ChainlinkOracleService) makeAndParseApiGetRequest(apiEndpoint string, targetStruct interface{}) error {
