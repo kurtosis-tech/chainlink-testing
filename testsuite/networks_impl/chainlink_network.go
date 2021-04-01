@@ -62,6 +62,11 @@ const (
 	configPublicKeyStrPrefix = "ocrcfg_"
 )
 
+type oracleIdentityWithKeyBundleId struct {
+	inner confighelper.OracleIdentityExtra
+	ocrKeyBundleId string
+}
+
 type ChainlinkNetwork struct {
 	networkCtx                         *networks.NetworkContext
 	gethDataDirArtifactId              services.FilesArtifactID
@@ -179,8 +184,13 @@ func (network *ChainlinkNetwork) Setup() error {
 
 	logrus.Info("Adding oracle nodes...")
 	var oracleBootstrapper *chainlink_oracle.ChainlinkOracleService  // Nil indicates there is no bootstrapper
+	var oracleBootstrapperServiceId services.ServiceID
 	for i := 0; i < numOracleNodes; i++ {
 		serviceId := services.ServiceID(fmt.Sprintf("%v%v", chainlinkOracleIdPrefix, i))
+		if oracleBootstrapperServiceId == "" {
+			oracleBootstrapperServiceId = serviceId
+		}
+
 		postgresService := postgresServices[i]
 		// TODO This will wait for the oracle service to become available before starting the next one - we can speed this
 		//  up by starting them all, THEN waiting for them all
@@ -230,9 +240,6 @@ func (network *ChainlinkNetwork) Setup() error {
 
 	logrus.Info("Setting job specs on oracles...")
 
-	// TODO Debugging
-	logrus.Infof("OCR contract address: %v", ocrContractAddr.Hex())
-
 	logrus.Info("Deploying the price feed server...")
 	priceFeedService, err := addPriceFeedServer(network.networkCtx, priceFeedServerId, network.priceFeedServerImage)
 	if err != nil {
@@ -242,21 +249,13 @@ func (network *ChainlinkNetwork) Setup() error {
 
 	logrus.Info("Deploying OCR jobs on oracles...")
 	datasourceUrl := fmt.Sprintf("http://%v:%v", priceFeedService.GetIPAddress(), priceFeedService.GetHTTPPort())
-	oracleBootstrapperP2PKeys, err := oracleBootstrapper.GetPeerToPeerKeys()
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred getting the bootstrapper oracle P2P keys")
-	}
-	if len(oracleBootstrapperP2PKeys) != 1 {
-		return stacktrace.NewError("Expected exactly one bootstrapper oracle P2P key but got %v", len(oracleBootstrapperP2PKeys))
-	}
-	oracleBootstrapperPeerId := oracleBootstrapperP2PKeys[0].Attributes.PeerId
-	oracleBootstrapperIpAddr := oracleBootstrapper.GetIPAddress()
 	if err := deployOcrJobsOnOracles(
-			ocrContractAddr.Hex(),
-			oracleBootstrapperIpAddr,
-			oracleBootstrapperPeerId,
-			datasourceUrl,
-			network.chainlinkOracleServices); err != nil {
+			ocrContractAddr,
+			oracleBootstrapperServiceId,
+			oracleBootstrapper,
+			network.chainlinkOracleServices,
+			oracleIdentities,
+			datasourceUrl); err != nil {
 		return stacktrace.Propagate(err, "An error occurred deploying the OCR jobs on the oracles")
 	}
 	logrus.Info("Deployed OCR jobs on oracles")
@@ -551,8 +550,8 @@ func deployOcrOracleContract(validatorClient *ethclient.Client, sendingTransacto
 	return ocrContractAddress, ocrContract, nil
 }
 
-func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) (map[services.ServiceID]confighelper.OracleIdentityExtra, error) {
-	oracleIdentities := map[services.ServiceID]confighelper.OracleIdentityExtra{}
+func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) (map[services.ServiceID]oracleIdentityWithKeyBundleId, error) {
+	oracleIdentities := map[services.ServiceID]oracleIdentityWithKeyBundleId{}
 	for serviceId, oracleService := range oracleServices {
 		// TODO Replace alllllll the handcrafting of OracleIdentityExtra inside here with a call to the Chainlink client
 		//  The desired method is likely client.Client.ListOCRKeyBundles
@@ -610,14 +609,17 @@ func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle
 		var sharedSecretEncryptionPubKey types.SharedSecretEncryptionPublicKey
 		copy(sharedSecretEncryptionPubKey[:], configPubKey)
 
-		identity := confighelper.OracleIdentityExtra{
-			OracleIdentity:                  confighelper.OracleIdentity{
-				OnChainSigningAddress: onChainSigningAddr,
-				TransmitAddress:       transmitterAddr,
-				OffchainPublicKey:     types.OffchainPublicKey(offChainPubKey),
-				PeerID:                strings.TrimPrefix(p2pKey.Attributes.PeerId, p2pIdStrPrefix),
+		identity := oracleIdentityWithKeyBundleId{
+			inner: confighelper.OracleIdentityExtra{
+				OracleIdentity:            confighelper.OracleIdentity{
+					OnChainSigningAddress: onChainSigningAddr,
+					TransmitAddress:       transmitterAddr,
+					OffchainPublicKey:     types.OffchainPublicKey(offChainPubKey),
+					PeerID:                strings.TrimPrefix(p2pKey.Attributes.PeerId, p2pIdStrPrefix),
+				},
+				SharedSecretEncryptionPublicKey: sharedSecretEncryptionPubKey,
 			},
-			SharedSecretEncryptionPublicKey: sharedSecretEncryptionPubKey,
+			ocrKeyBundleId: ocrKeyBundle.Attributes.Id,
 		}
 
 		oracleIdentities[serviceId] = identity
@@ -628,10 +630,10 @@ func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle
 func configureOcrContract(
 		sendingTransactor *bind.TransactOpts,
 		ocrContract *offchainaggregator.OffchainAggregator,
-		oracleIdentities map[services.ServiceID]confighelper.OracleIdentityExtra) error {
+		oracleIdentities map[services.ServiceID]oracleIdentityWithKeyBundleId) error {
 	oracleIdentitiesList := []confighelper.OracleIdentityExtra{}
 	for _, identity := range oracleIdentities {
-		oracleIdentitiesList = append(oracleIdentitiesList, identity)
+		oracleIdentitiesList = append(oracleIdentitiesList, identity.inner)
 	}
 
 	// Params for this method are copied from https://github.com/smartcontractkit/chainlink/blob/51944ed3b3d0ea390998a3fffe33abaf2e15a711/core/internal/features_test.go#L1416
@@ -668,18 +670,17 @@ func parseOcrPubKeyHexStr(pubKeyHexStr string, prefix string) (ed25519.PublicKey
 }
 
 func deployOcrJobsOnOracles(
-		ocrContractAddrStr string,
+		ocrContractAddr common.Address,
 		bootstrapperServiceId services.ServiceID,
-		bootstrapperIpAddr string,
+		bootstrapperService *chainlink_oracle.ChainlinkOracleService,
 		oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService,
-		oracleIdentities map[services.ServiceID]confighelper.OracleIdentityExtra,
+		oracleIdentities map[services.ServiceID]oracleIdentityWithKeyBundleId,
 		datasourceUrl string) error {
 	bootstrapperIdentity, found := oracleIdentities[bootstrapperServiceId]
 	if !found {
 		return stacktrace.NewError("No oracle identity found for bootstrapper ID '%v'", bootstrapperServiceId)
 	}
-
-	bootstrapperPeer2PeerId := bootstrapperIdentity.PeerID
+	bootstrapperPeer2PeerId := bootstrapperIdentity.inner.PeerID
 
 	for serviceId, oracleService := range oracleServices {
 		identity, found := oracleIdentities[serviceId]
@@ -687,51 +688,23 @@ func deployOcrJobsOnOracles(
 			return stacktrace.NewError("Couldn't find oracle identity for oracle with service ID '%v'", serviceId)
 		}
 		isBootstrapper := serviceId == bootstrapperServiceId
-		generateOcrJobSpecTomlStr(ocrContractAddrStr, bootstrapperIpAddr, bootstrapperPeer2PeerId, identity.PeerID, isBootstrapper, )
-	}
+		jobSpecTomlStr := generateOcrJobSpecTomlStr(
+			ocrContractAddr,
+			bootstrapperService.GetIPAddress(),
+			bootstrapperService.GetPeerToPeerListenPort(),
+			bootstrapperPeer2PeerId,
+			identity.inner.PeerID,
+			isBootstrapper,
+			identity.ocrKeyBundleId,
+			identity.inner.TransmitAddress,
+			datasourceUrl)
 
-	// P2P ID
-	allPeer2PeerKeys, err := service.GetPeerToPeerKeys()
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred getting the P2P keys from the oracle")
-	}
-	if len(allPeer2PeerKeys) != 1 {
-		return "", stacktrace.NewError("Expected exactly 1 P2P key but found %v", len(allPeer2PeerKeys))
-	}
-	peer2PeerKey := allPeer2PeerKeys[0]
-	peer2PeerId := peer2PeerKey.Attributes.PeerId
-
-	// OCR key bundle ID
-	allOcrKeyBundles, err := service.GetOCRKeyBundles()
-	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred getting the OCR key bundles from the oracle")
-	}
-	if len(allOcrKeyBundles) != 1 {
-		return "", stacktrace.NewError("Expected exactly 1 OCR key bundle but found %v", len(allOcrKeyBundles))
-	}
-	ocrKeyBundle := allOcrKeyBundles[0]
-	ocrKeyBundleId := ocrKeyBundle.Attributes.Id
-
-	jobSpecTomlStr := generateJobSpec(
-		oracleContractAddress,
-		bootstrapperIpAddr,
-		bootstrapperPeerId,
-		peer2PeerId,
-		ocrKeyBundleId,
-		transmitterAddress,
-		datasourceUrl)
-
-
-
-	for serviceId, service := range oracleServices {
-		jobId, err := service.SetJobSpec(ocrContractAddrStr, bootstrapperOracleIpAddr, bootstrapperOraclePeerId, datasourceUrl)
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred deploying the OCR job spec on oracle '%v'", serviceId)
+		if err := oracleService.SetJobSpec(jobSpecTomlStr); err != nil {
+			return stacktrace.Propagate(err, "An error occurred deploying OCR job spec on oracle '%v'", serviceId)
 		}
-		logrus.Debugf("Successfully deployed OCR job spec on oracle '%v' referencing OCR contract address '%v', resulting in job ID '%v'",
+		logrus.Debugf("Successfully deployed OCR job spec on oracle '%v' referencing OCR contract address '%v'",
 			serviceId,
-			ocrContractAddrStr,
-			jobId)
+			ocrContractAddr.Hex())
 	}
 	return nil
 }
@@ -784,13 +757,14 @@ func generateJobSpec(oracleContractAddress string) string {
 */
 
 func generateOcrJobSpecTomlStr(
-		oracleContractAddress string,
+		oracleContractAddress common.Address,
 		bootstrapIpAddr string,
+		bootstrapPeerToPeerListenPort int,
 		bootstrapPeerToPeerId string,
 		nodePeerToPeerId string,
 		isBootstrapPeer bool,
 		nodeOcrKeyBundleId string,
-		nodeEthTransmitterAddress string,
+		nodeEthTransmitterAddress common.Address,
 		datasourceUrl string) string {
 	// TODO Add an EthInt256 step to this??
 	// TODO Modify the tcp port for the p2pBootstrapPeers??
@@ -823,13 +797,13 @@ observationSource = """
 	answer [type=median];
 """
 		`,
-		oracleContractAddress,
+		oracleContractAddress.Hex(),
 		bootstrapIpAddr,
-		peer2PeerListenPort,
+		bootstrapPeerToPeerListenPort,
 		bootstrapPeerToPeerId,
 		nodePeerToPeerId,
 		isBootstrapPeer,
 		nodeOcrKeyBundleId,
-		nodeEthTransmitterAddress,
+		nodeEthTransmitterAddress.Hex(),
 		datasourceUrl)
 }

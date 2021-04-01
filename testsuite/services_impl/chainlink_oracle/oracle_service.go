@@ -58,6 +58,10 @@ func (service *ChainlinkOracleService) GetOperatorPort() int {
 	return operatorUiPort
 }
 
+func (service *ChainlinkOracleService) GetPeerToPeerListenPort() int {
+	return peer2PeerListenPort
+}
+
 func (service *ChainlinkOracleService) GetIPAddress() string {
 	return service.serviceCtx.GetIPAddress()
 }
@@ -109,16 +113,16 @@ func (service *ChainlinkOracleService) GetOCRKeyBundles() ([]OracleOcrKeyBundle,
 }
 
 // TODO Replace the hand-crafted POST wtih a call to the Chainlink client.Client
-func (service *ChainlinkOracleService) SetJobSpec(tomlSpecStr string) (jobId string, err error) {
+func (service *ChainlinkOracleService) SetJobSpec(tomlSpecStr string) error {
 	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred getting the oracle session client")
+		return stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
 
 	jobSpecReq := CreateTomlJobRequest{TOML: tomlSpecStr}
 	serializedJobSpecReq, err := json.Marshal(jobSpecReq)
 	if err != nil {
-		return "", stacktrace.Propagate(err, "An error occurred serializing the following job spec request object to JSON: %+v", jobSpecReq)
+		return stacktrace.Propagate(err, "An error occurred serializing the following job spec request object to JSON: %+v", jobSpecReq)
 	}
 	url := fmt.Sprintf(
 		"http://%v:%v/%v",
@@ -128,16 +132,15 @@ func (service *ChainlinkOracleService) SetJobSpec(tomlSpecStr string) (jobId str
 
 	resp, err := client.Post(url, jsonMimeType, bytes.NewBuffer(serializedJobSpecReq))
 	if err != nil {
-		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the oracle")
+		return stacktrace.Propagate(err, "Encountered an error trying to set job spec on the oracle")
 	}
 	jobInitiatedResponse := new(OracleJobInitiatedResponse)
 	defer resp.Body.Close()
 
-	err = parseAndLogResponse(resp, jobInitiatedResponse)
-	if err != nil {
-		return "", stacktrace.Propagate(err, "Failed to parse oracle response into a struct")
+	if err := parseAndLogResponse(resp, jobInitiatedResponse); err != nil {
+		return stacktrace.Propagate(err, "Failed to parse oracle response into a struct")
 	}
-	return jobInitiatedResponse.Data.Id, nil
+	return nil
 }
 
 // ===========================================================================================
