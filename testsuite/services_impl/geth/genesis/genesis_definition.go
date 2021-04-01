@@ -1,5 +1,7 @@
 package genesis
 
+const ChainId = 9
+
 // see the clique genesis json here: https://geth.ethereum.org/docs/interface/private-network
 // must have extradata contain the default account, first funded. this is the default signer set for clique genesis
 // TODO We have duplication!!! This contains addresses, but they're also duplicated in the FirstFundedAddress constant!

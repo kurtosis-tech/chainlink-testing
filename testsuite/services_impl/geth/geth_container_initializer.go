@@ -34,8 +34,6 @@ const (
 	gethDataRuntimeDirpath = "/data"
 
 	PrivateKeyPassword = "password"
-	// TODO Distinguish chain ID from network ID
-	PrivateNetworkId     = 9
 	TestVolumeMountpoint = "/test-volume"
 )
 
@@ -115,7 +113,7 @@ func (initializer GethContainerInitializer) GetStartCommandOverrides(mountedFile
 	entrypointCommand += fmt.Sprintf("geth --nodiscover --verbosity 4 --keystore %v --datadir %v --networkid %v ",
 		path.Join(gethDataRuntimeDirpath, keystoreFilename),
 		gethDataRuntimeDirpath,
-		PrivateNetworkId)
+		genesis.ChainId)
 	entrypointCommand += fmt.Sprintf("-http --http.api %v --http.addr %v --http.corsdomain '*' --nat extip:%v --gcmode archive --syncmode full ",
 		httpExposedApisString,
 		ipAddr,

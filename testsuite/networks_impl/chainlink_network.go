@@ -12,6 +12,7 @@ import (
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_oracle"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/genesis"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/price_feed_server"
 	"github.com/palantir/stacktrace"
@@ -124,7 +125,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	firstFundedAddrTransactor, err := bind.NewTransactorWithChainID(
 		strings.NewReader(firstFundedAddrKey),
 		password,
-		big.NewInt(geth.PrivateNetworkId))
+		big.NewInt(genesis.ChainId))
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred creating a transactor to sign the transaction")
 	}

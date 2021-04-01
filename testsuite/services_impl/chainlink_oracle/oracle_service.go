@@ -234,6 +234,7 @@ func (service *ChainlinkOracleService) getApiRequestUrl(endpoint string) string 
 		endpoint)
 }
 
+// TODO Delete this
 /*
 func generateJobSpec(oracleContractAddress string) string {
 	return fmt.Sprintf(`{
@@ -342,10 +343,16 @@ func parseAndLogResponse(resp *http.Response, targetStruct interface{}) error{
 	bodyString := string(bodyBytes)
 	logrus.Debugf("Raw response from oracle: %v", bodyString)
 
+	var errResponse ErrorsResponse
+	if err := json.Unmarshal(bodyBytes, &errResponse); err != nil {
+		return stacktrace.Propagate(err, "An error occurred trying to unmarshal the response into the error response type")
+	}
+	if errResponse.Errors != nil {
+		return stacktrace.NewError("The oracle server returned errors: %+v", errResponse.Errors)
+	}
 
-	err = json.NewDecoder(&teeBuf).Decode(targetStruct)
-	if err != nil {
-		return stacktrace.Propagate(err, "Error parsing Oracle response into a struct.")
+	if err := json.Unmarshal(bodyBytes, targetStruct); err != nil {
+		return stacktrace.Propagate(err, "An error occurred parsing the raw oracle response into a structured object")
 	}
 	logrus.Debugf("JSON-parsed response from oracle: %+v", targetStruct)
 	return nil

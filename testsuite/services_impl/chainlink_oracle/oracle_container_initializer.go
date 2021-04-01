@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
+	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/genesis"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/postgres"
 	"github.com/palantir/stacktrace"
 	"os"
@@ -74,7 +75,7 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 	return map[string]string {
 		"ROOT": "/chainlink",
 		"LOG_LEVEL": "debug",
-		"ETH_CHAIN_ID": fmt.Sprintf("%v", geth.PrivateNetworkId),
+		"ETH_CHAIN_ID": fmt.Sprintf("%v", genesis.ChainId),
 		"MIN_OUTGOING_CONFIRMATIONS": strconv.Itoa(minOutgoingConfirmations),
 		"MIN_INCOMING_CONFIRMATIONS": strconv.Itoa(minIncomingConfirmations),
 		"ETH_GAS_PRICE_DEFAULT": strconv.Itoa(gasPriceDefault),

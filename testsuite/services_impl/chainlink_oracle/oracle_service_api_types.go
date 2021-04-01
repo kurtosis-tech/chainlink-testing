@@ -1,5 +1,12 @@
 package chainlink_oracle
 
+type ErrorsResponse struct {
+	Errors []Error `json:"errors"`
+}
+type Error struct {
+	Detail string `json:"detail"`
+}
+
 // ====================================================================================================
 //                                         Get Runs
 // ====================================================================================================
