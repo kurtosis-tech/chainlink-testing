@@ -21,7 +21,7 @@ const (
 	isAvailableDialTimeout = time.Second
 
 	sessionsEndpoint = "sessions"
-	specsEndpoint = "v2/specs"
+	jobSpecsEndpoint = "v2/jobs"
 
 	keysEndpoint = "v2/keys"
 	ethKeyEndpointSuffix = "eth"
@@ -47,7 +47,11 @@ type ChainlinkOracleService struct {
 }
 
 func NewChainlinkOracleService(serviceCtx *services.ServiceContext) *ChainlinkOracleService {
-	return &ChainlinkOracleService{serviceCtx: serviceCtx}
+	return &ChainlinkOracleService{
+		serviceCtx:        serviceCtx,
+		clientWithSession: nil,
+		sessionCookieJar:  nil,
+	}
 }
 
 func (service *ChainlinkOracleService) GetOperatorPort() int {
@@ -145,7 +149,7 @@ func (service *ChainlinkOracleService) SetJobSpec(
 	ocrKeyBundle := allOcrKeyBundles[0]
 	ocrKeyBundleId := ocrKeyBundle.Attributes.Id
 
-	jobSpecJsonStr := generateJobSpec(
+	jobSpecTomlStr := generateJobSpec(
 		oracleContractAddress,
 		bootstrapperIpAddr,
 		bootstrapperPeerId,
@@ -153,14 +157,18 @@ func (service *ChainlinkOracleService) SetJobSpec(
 		ocrKeyBundleId,
 		transmitterAddress,
 		datasourceUrl)
-	jsonByteArray := []byte(jobSpecJsonStr)
+	jobSpecReq := CreateTomlJobRequest{TOML: jobSpecTomlStr}
+	serializedJobSpecReq, err := json.Marshal(jobSpecReq)
+	if err != nil {
+		return "", stacktrace.Propagate(err, "An error occurred serializing the following job spec request object to JSON: %+v", jobSpecReq)
+	}
 	url := fmt.Sprintf(
 		"http://%v:%v/%v",
 		service.GetIPAddress(),
 		service.GetOperatorPort(),
-		specsEndpoint)
+		jobSpecsEndpoint)
 
-	resp, err := client.Post(url, jsonMimeType, bytes.NewBuffer(jsonByteArray))
+	resp, err := client.Post(url, jsonMimeType, bytes.NewBuffer(serializedJobSpecReq))
 	if err != nil {
 		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the Oracle.")
 	}
@@ -273,9 +281,10 @@ func generateJobSpec(
 			nodeOcrKeyBundleId string,
 			nodeEthTransmitterAddress string,
 			datasourceUrl string) string {
-		// TODO Add an EthInt256 step to this??
-		// TODO Modify the tcp port for the p2pBootstrapPeers??
-		return fmt.Sprintf(
+	// TODO Add an EthInt256 step to this??
+	// TODO Modify the tcp port for the p2pBootstrapPeers??
+	// TODO Replace this string with an actual structured object from https://github.com/smartcontractkit/chainlink/blob/2f2dc24f3ef6a63a47d7a3a4d2c23239d89555c0/core/services/job/models.go#L101
+	return fmt.Sprintf(
 			`
 type               = "offchainreporting"
 schemaVersion      = 1
@@ -302,14 +311,14 @@ observationSource = """
 	ds1 -> ds1_parse -> ds1_multiply -> answer;
 	answer [type=median];
 """
-			`,
-			oracleContractAddress,
-			bootstrapIpAddr,
-			bootstrapPeerToPeerId,
-			nodePeerToPeerId,
-			nodeOcrKeyBundleId,
-			nodeEthTransmitterAddress,
-			datasourceUrl)
+		`,
+		oracleContractAddress,
+		bootstrapIpAddr,
+		bootstrapPeerToPeerId,
+		nodePeerToPeerId,
+		nodeOcrKeyBundleId,
+		nodeEthTransmitterAddress,
+		datasourceUrl)
 }
 
 func (service *ChainlinkOracleService) makeAndParseApiGetRequest(apiEndpoint string, targetStruct interface{}) error {
