@@ -23,7 +23,6 @@ import (
 	"github.com/smartcontractkit/libocr/offchainreporting/confighelper"
 	"github.com/smartcontractkit/libocr/offchainreporting/types"
 	"math/big"
-	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -46,8 +45,17 @@ const (
 	// Num Geth nodes (including bootstrapper)
 	numGethNodes = 3
 
-	waitForStartupTimeBetweenPolls = 1 * time.Second
-	waitForStartupMaxNumPolls = 45 // If 30, we get occasional timeouts on oracle startup
+	// Availability check constants
+	gethTimeBetweenIsAvailablePolls = 1 * time.Second
+	gethMaxIsAvailablePolls = 30
+	contractDeployerTimeBetweenIsAvailablePolls = 1 * time.Second
+	contractDeployerMaxIsAvailablePolls = 10
+	postgresTimeBetweenIsAvailablePolls = 1 * time.Second
+	postgresMaxIsAvailablePolls = 30
+	oracleTimeBetweenIsAvailablePolls = 1 * time.Second
+	oracleMaxIsAvailablePolls = 120
+	priceFeedTimeBetweenIsAvailablePolls = 1 * time.Second
+	priceFeedMaxIsAvailablePolls = 10
 
 	maxNumGethValidatorConnectednessVerifications = 3
 	timeBetweenGethValidatorConnectednessVerifications = 1 * time.Second
@@ -90,7 +98,6 @@ type ChainlinkNetwork struct {
 	linkContractDeployerService        *chainlink_contract_deployer.ChainlinkContractDeployerService
 	postgresImage                      string
 	chainlinkOracleImage               string
-	chainlinkOracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService
 	priceFeedServerImage               string
 	priceFeedServer                    *price_feed_server.PriceFeedServer
 	priceFeedJobId                     string
@@ -112,7 +119,6 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		linkContractDeployerService: nil,
 		postgresImage:               postgresImage,
 		chainlinkOracleImage:        chainlinkOracleImage,
-		chainlinkOracleServices:     map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService{},
 		priceFeedServerImage:        priceFeedServerImage,
 		priceFeedServer:             nil,
 		priceFeedJobId:              "",
@@ -203,7 +209,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	logrus.Info("Added oracle nodes")
 
 	logrus.Info("Funding oracle ETH addresses...")
-	if err := fundOracleEthAccounts(network.chainlinkOracleServices, gethBootstrapper); err != nil {
+	if err := fundOracleEthAccounts(oracleServices, gethBootstrapper); err != nil {
 		return stacktrace.Propagate(err, "An error occurred funding the oracle ETH accounts")
 	}
 	logrus.Info("Funded oracle ETH addresses")
@@ -219,7 +225,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 
 	logrus.Info("Getting oracle identities...")
-	oracleIdentities, err := getOracleIdentities(network.chainlinkOracleServices)
+	oracleIdentities, err := getOracleIdentities(oracleServices)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred getting oracle identities")
 	}
@@ -231,27 +237,29 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 	logrus.Info("Configured OCR contract")
 
-	logrus.Info("Setting job specs on oracles...")
-
 	logrus.Info("Deploying the price feed server...")
 	priceFeedService, err := addPriceFeedServer(network.networkCtx, priceFeedServerId, network.priceFeedServerImage)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred adding the price feed server")
 	}
-	logrus.Info("Deployed price feed server...")
+	logrus.Info("Deployed price feed server")
 
 	logrus.Info("Deploying OCR jobs on oracles...")
 	datasourceUrl := fmt.Sprintf("http://%v:%v", priceFeedService.GetIPAddress(), priceFeedService.GetHTTPPort())
 	if err := deployOcrJobsOnOracles(
 			ocrContractAddr,
+			ocrContract,
 			oracleBootstrapperServiceId,
 			oracleBootstrapper,
-			network.chainlinkOracleServices,
+			oracleServices,
 			oracleIdentities,
 			datasourceUrl); err != nil {
 		return stacktrace.Propagate(err, "An error occurred deploying the OCR jobs on the oracles")
 	}
 	logrus.Info("Deployed OCR jobs on oracles")
+
+	// TODO DEBUGGING
+	time.Sleep(20)
 
 	network.ocrContract = ocrContract
 
@@ -347,7 +355,7 @@ func (network ChainlinkNetwork) addGethService(serviceId services.ServiceID, boo
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred adding Geth service with ID '%v'", serviceId)
 	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+	if err := checker.WaitForStartup(gethTimeBetweenIsAvailablePolls, gethMaxIsAvailablePolls); err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred waiting for Geth service with ID '%v' to start", serviceId)
 	}
 	castedService, ok := uncastedService.(*geth.GethService)
@@ -411,7 +419,7 @@ func startContractDeployerService(
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred adding the $LINK contract deployer to the network.")
 	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+	if err := checker.WaitForStartup(contractDeployerTimeBetweenIsAvailablePolls, contractDeployerMaxIsAvailablePolls); err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred waiting for the $LINK contract deployer service to start")
 	}
 	castedService, ok := uncastedService.(*chainlink_contract_deployer.ChainlinkContractDeployerService)
@@ -440,7 +448,7 @@ func addPostgresServices(networkCtx *networks.NetworkContext, dockerImage string
 	}
 
 	for serviceId, checker := range postgresCheckers {
-		if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+		if err := checker.WaitForStartup(postgresTimeBetweenIsAvailablePolls, postgresMaxIsAvailablePolls); err != nil {
 			return nil, stacktrace.Propagate(err, "An error occurred waiting for postgres service with ID '%v' to start", serviceId)
 		}
 	}
@@ -453,10 +461,9 @@ func addOracleService(
 		oracleContractAddr string,
 		gethService *geth.GethService,
 		dockerImage string,
-		postgresServices []*postgres.PostgresService) (oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService, bootstrapperId services.ServiceID, resultErr error) {
+		postgresServices []*postgres.PostgresService) (map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService, services.ServiceID, error) {
 	var oracleBootstrapperServiceId services.ServiceID
-	oracleServices = map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService{}
-	checkers := map[services.ServiceID]services.AvailabilityChecker{}
+	oracleServices := map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService{}
 	for i := 0; i < len(postgresServices); i++ {
 		serviceId := services.ServiceID(fmt.Sprintf("%v%v", chainlinkOracleIdPrefix, i))
 		postgresService := postgresServices[i]
@@ -470,7 +477,13 @@ func addOracleService(
 		if err != nil {
 			return nil, "", stacktrace.Propagate(err, "An error occurred adding oracle service with ID '%v'", serviceId)
 		}
-		checkers[serviceId] = checker
+
+		// We wait for startup here, rather than starting everything in parallel then waiting for them all, because Chainlink nodes
+		// use a lot of memory on startup (~1 GB) and so are liable to OOM the Docker VM when started all at once, which means
+		// the Docker VM will start killing containers :(
+		if err := checker.WaitForStartup(oracleTimeBetweenIsAvailablePolls, oracleMaxIsAvailablePolls); err != nil {
+			return nil, "", stacktrace.Propagate(err, "An error occurred waiting for oracle service with ID '%v' to start up", serviceId)
+		}
 
 		castedService, ok := uncastedService.(*chainlink_oracle.ChainlinkOracleService)
 		if !ok {
@@ -483,14 +496,8 @@ func addOracleService(
 		}
 	}
 
-	// Now wait for all the nodes to come up
-	for serviceId, checker := range checkers {
-		if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-			return nil, "", stacktrace.Propagate(err, "An error occurred waiting for oracle service with ID '%v' to start up", serviceId)
-		}
-	}
 
-	return oracleServices, bootstrapperId, nil
+	return oracleServices, oracleBootstrapperServiceId, nil
 }
 
 func fundOracleEthAccounts(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService, gethService *geth.GethService) error {
@@ -734,6 +741,8 @@ func parseOcrPubKeyHexStr(pubKeyHexStr string, prefix string) (ed25519.PublicKey
 
 func deployOcrJobsOnOracles(
 		ocrContractAddr common.Address,
+		// TODO DEBUGGING
+		ocrContract *offchainaggregator.OffchainAggregator,
 		bootstrapperServiceId services.ServiceID,
 		bootstrapperService *chainlink_oracle.ChainlinkOracleService,
 		oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService,
@@ -780,7 +789,36 @@ func deployOcrJobsOnOracles(
 			jobId)
 	}
 
-	// Now, wait for jobs to complete successfully
+	// TODO DEBUGGINNG
+	for {
+		answer, err := ocrContract.LatestAnswer(nil)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the latest answer: %v", err)
+		} else {
+			logrus.Debugf("Latest answer: %v", answer)
+		}
+		round, err := ocrContract.LatestRound(nil)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the latest round: %v", err)
+		} else {
+			logrus.Debugf("Latest round: %v", round)
+		}
+		/*
+		for serviceId, oracleService := range oracleServices {
+			jobId := jobIds[serviceId]
+			runs, err := oracleService.GetRunsForJob(jobId)
+			if err != nil {
+				logrus.Debugf("An error occurred getting runs for the newly-deployed job '%v' on oracle '%v': %v", jobId, serviceId, err)
+			}
+			logrus.Debugf("Runs for job %v for oracle %v: %+v", jobId, serviceId, runs)
+		}
+
+		 */
+		time.Sleep(5 * time.Second)
+	}
+
+	/*
+		// Now, wait for jobs to complete successfully
 	logrus.Debugf("Waiting for oracle OCR jobs to complete...")
 	for serviceId, oracleService := range oracleServices {
 		jobId, found := jobIds[serviceId]
@@ -818,6 +856,8 @@ func deployOcrJobsOnOracles(
 		logrus.Debugf("OCR job '%v' on oracle '%v' completed successfully", jobId, serviceId)
 	}
 
+	 */
+
 	return nil
 }
 
@@ -827,7 +867,7 @@ func addPriceFeedServer(networkCtx *networks.NetworkContext, serviceId services.
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred adding price feed server with ID '%v'", serviceId)
 	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+	if err := checker.WaitForStartup(priceFeedTimeBetweenIsAvailablePolls, priceFeedMaxIsAvailablePolls); err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred waiting for price feed server with ID '%v' to start", serviceId)
 	}
 	castedService, ok := uncastedService.(*price_feed_server.PriceFeedServer)
@@ -910,20 +950,15 @@ contractConfigConfirmations = 3`,
 	// Only non-bootstrap peers have observation source according to:
 	// https://github.com/smartcontractkit/chainlink/blob/c08a98c74ec591b471b7a960af9019b9fbb1b6b3/core/services/offchainreporting/validate.go#L80
 	if !isBootstrapPeer {
-		datasourceUrl, err := url.Parse(datasourceUrlStr)
-		if err != nil {
-			return "", stacktrace.Propagate(err, "An error occurred parsing datasource URL string '%v'", datasourceUrlStr)
-		}
 		observationSourceStr := fmt.Sprintf(`observationSource = """
 	// data source 1
-	ds1          [type=%v method=GET url="%v" requestData="{}"];
+	ds1          [type=http allowunrestrictednetworkaccess=true method=GET url="%v" requestData="{}"];
 	ds1_parse    [type=jsonparse path="USD"];
 	ds1_multiply [type=multiply times=10];
 
 	ds1 -> ds1_parse -> ds1_multiply -> answer;
 	answer [type=median];
 """`,
-			datasourceUrl.Scheme,
 			datasourceUrlStr)
 		result = fmt.Sprintf("%v\n%v", result, observationSourceStr)
 	}
