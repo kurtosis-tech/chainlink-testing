@@ -31,11 +31,17 @@ import (
 
 const (
 	gethServiceIdPrefix                        = "ethereum-node-"
-	jobCompletedStatus      string             = "completed"
 	linkContractDeployerId  services.ServiceID = "link-contract-deployer"
 	postgresIdPrefix        = "postgres-"
 	priceFeedServerId       services.ServiceID = "price-feed-server"
 	chainlinkOracleIdPrefix = "chainlink-oracle-"
+
+	jobCompletedStatus      string             = "completed"
+
+	// How long we'll wait for the OCR jobs on the oracles to complete
+	timeToWaitForJobCompletion = 10 * time.Second
+
+	timeBetweenJobCompletionChecks = 1 * time.Second
 
 	// Num Geth nodes (including bootstrapper)
 	numGethNodes = 3
@@ -176,47 +182,24 @@ func (network *ChainlinkNetwork) Setup() error {
 	logrus.Info("LINK wallet funded")
 
 	logrus.Info("Adding Postgres nodes for oracles...")
-	postgresServices := []*postgres.PostgresService{}
-	for i := 0; i < numOracleNodes; i++ {
-		serviceId := services.ServiceID(fmt.Sprintf("%v%v", postgresIdPrefix, i))
-		// TODO this will block until the node is available - we can speed this up by starting them all AND THEN
-		//  waiting for them all
-		service, err := addPostgresService(network.networkCtx, serviceId, network.postgresImage)
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred adding postgres service '%v'", serviceId)
-		}
-		postgresServices = append(postgresServices, service)
+	postgresServices, err := addPostgresServices(network.networkCtx, network.postgresImage, numOracleNodes)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the postgres nodes")
 	}
 	logrus.Info("Added Postgres nodes for oracles")
 
 	logrus.Info("Adding oracle nodes...")
-	var oracleBootstrapper *chainlink_oracle.ChainlinkOracleService  // Nil indicates there is no bootstrapper
-	var oracleBootstrapperServiceId services.ServiceID
-	for i := 0; i < numOracleNodes; i++ {
-		serviceId := services.ServiceID(fmt.Sprintf("%v%v", chainlinkOracleIdPrefix, i))
-		if oracleBootstrapperServiceId == "" {
-			oracleBootstrapperServiceId = serviceId
-		}
-
-		postgresService := postgresServices[i]
-		// TODO This will wait for the oracle service to become available before starting the next one - we can speed this
-		//  up by starting them all, THEN waiting for them all
-		service, err := addOracleService(
-			network.networkCtx,
-			linkContractAddress,
-			oracleContractAddress,
-			gethBootstrapper,
-			serviceId,
-			network.chainlinkOracleImage,
-			postgresService)
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred adding oracle service '%v'", serviceId)
-		}
-		if oracleBootstrapper == nil {
-			oracleBootstrapper = service
-		}
-		network.chainlinkOracleServices[serviceId] = service
+	oracleServices, oracleBootstrapperServiceId, err := addOracleService(
+		network.networkCtx,
+		linkContractAddress,
+		oracleContractAddress,
+		gethBootstrapper,
+		network.chainlinkOracleImage,
+		postgresServices)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred adding the oracle services")
 	}
+	oracleBootstrapper := oracleServices[oracleBootstrapperServiceId]
 	logrus.Info("Added oracle nodes")
 
 	logrus.Info("Funding oracle ETH addresses...")
@@ -240,6 +223,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred getting oracle identities")
 	}
+	logrus.Info("Got oracle identities")
 
 	logrus.Info("Configuring OCR contract with oracles...")
 	if err := configureOcrContract(firstFundedAddrTransactor, gethBootstrapperClient, ocrContract, oracleIdentities); err != nil {
@@ -437,20 +421,30 @@ func startContractDeployerService(
 	return castedService,nil
 }
 
-func addPostgresService(networkCtx *networks.NetworkContext, serviceId services.ServiceID, dockerImage string) (*postgres.PostgresService, error) {
+func addPostgresServices(networkCtx *networks.NetworkContext, dockerImage string, numServices int) ([]*postgres.PostgresService, error) {
 	postgresInitializer := postgres.NewPostgresContainerInitializer(dockerImage)
-	uncastedService, checker, err := networkCtx.AddService(serviceId, postgresInitializer)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred adding postgres service with ID '%v'", serviceId)
+	postgresServices := []*postgres.PostgresService{}
+	postgresCheckers := map[services.ServiceID]services.AvailabilityChecker{}
+	for i := 0; i < numServices; i++ {
+		serviceId := services.ServiceID(fmt.Sprintf("%v%v", postgresIdPrefix, i))
+		uncastedService, checker, err := networkCtx.AddService(serviceId, postgresInitializer)
+		if err != nil {
+			return nil, stacktrace.Propagate(err, "An error occurred adding postgres service with ID '%v'", serviceId)
+		}
+		postgresCheckers[serviceId] = checker
+		castedService, ok := uncastedService.(*postgres.PostgresService)
+		if !ok {
+			return nil, stacktrace.NewError("An error occurred downcasting postgres service with ID '%v' to the correct type", serviceId)
+		}
+		postgresServices = append(postgresServices, castedService)
 	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred waiting for postgres service with ID '%v' to start", serviceId)
+
+	for serviceId, checker := range postgresCheckers {
+		if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+			return nil, stacktrace.Propagate(err, "An error occurred waiting for postgres service with ID '%v' to start", serviceId)
+		}
 	}
-	castedService, ok := uncastedService.(*postgres.PostgresService)
-	if !ok {
-		return nil, stacktrace.NewError("An error occurred downcasting postgres service with ID '%v' to the correct type", serviceId)
-	}
-	return castedService, nil
+	return postgresServices, nil
 }
 
 func addOracleService(
@@ -458,27 +452,45 @@ func addOracleService(
 		linkContractAddr string,
 		oracleContractAddr string,
 		gethService *geth.GethService,
-		serviceId services.ServiceID,
 		dockerImage string,
-		postgresService *postgres.PostgresService) (*chainlink_oracle.ChainlinkOracleService, error) {
-	initializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(
-		dockerImage,
-		linkContractAddr,
-		oracleContractAddr,
-		gethService,
-		postgresService)
-	uncastedService, checker, err := networkCtx.AddService(serviceId, initializer)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred adding oracle service with ID '%v'", serviceId)
+		postgresServices []*postgres.PostgresService) (oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService, bootstrapperId services.ServiceID, resultErr error) {
+	var oracleBootstrapperServiceId services.ServiceID
+	oracleServices = map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService{}
+	checkers := map[services.ServiceID]services.AvailabilityChecker{}
+	for i := 0; i < len(postgresServices); i++ {
+		serviceId := services.ServiceID(fmt.Sprintf("%v%v", chainlinkOracleIdPrefix, i))
+		postgresService := postgresServices[i]
+		initializer := chainlink_oracle.NewChainlinkOracleContainerInitializer(
+			dockerImage,
+			linkContractAddr,
+			oracleContractAddr,
+			gethService,
+			postgresService)
+		uncastedService, checker, err := networkCtx.AddService(serviceId, initializer)
+		if err != nil {
+			return nil, "", stacktrace.Propagate(err, "An error occurred adding oracle service with ID '%v'", serviceId)
+		}
+		checkers[serviceId] = checker
+
+		castedService, ok := uncastedService.(*chainlink_oracle.ChainlinkOracleService)
+		if !ok {
+			return nil, "", stacktrace.NewError("Could not downcast oracle service to correct type for service with ID '%v'", serviceId)
+		}
+		oracleServices[serviceId] = castedService
+
+		if oracleBootstrapperServiceId == "" {
+			oracleBootstrapperServiceId = serviceId
+		}
 	}
-	if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred waiting for oracle service with ID '%v' to start up", serviceId)
+
+	// Now wait for all the nodes to come up
+	for serviceId, checker := range checkers {
+		if err := checker.WaitForStartup(waitForStartupTimeBetweenPolls, waitForStartupMaxNumPolls); err != nil {
+			return nil, "", stacktrace.Propagate(err, "An error occurred waiting for oracle service with ID '%v' to start up", serviceId)
+		}
 	}
-	castedService, ok := uncastedService.(*chainlink_oracle.ChainlinkOracleService)
-	if !ok {
-		return nil, stacktrace.NewError("Could not downcast oracle service to correct type for service with ID '%v'", serviceId)
-	}
-	return castedService, nil
+
+	return oracleServices, bootstrapperId, nil
 }
 
 func fundOracleEthAccounts(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService, gethService *geth.GethService) error {
@@ -658,6 +670,11 @@ func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle
 
 		oracleIdentities[serviceId] = identity
 	}
+
+	for serviceId, identity := range oracleIdentities {
+		logrus.Debugf("Oracle identity for node '%v': %+v", serviceId, identity)
+	}
+
 	return oracleIdentities, nil
 }
 
@@ -728,6 +745,8 @@ func deployOcrJobsOnOracles(
 	}
 	bootstrapperPeer2PeerId := bootstrapperIdentity.inner.PeerID
 
+	logrus.Debugf("Deploying OCR jobs on oracles...")
+	jobIds := map[services.ServiceID]string{}
 	for serviceId, oracleService := range oracleServices {
 		identity, found := oracleIdentities[serviceId]
 		if !found {
@@ -749,13 +768,56 @@ func deployOcrJobsOnOracles(
 		}
 		logrus.Debugf("Job spec TOML string:\n%v", jobSpecTomlStr)
 
-		if err := oracleService.SetJobSpec(jobSpecTomlStr); err != nil {
+		jobId, err := oracleService.SetJobSpec(jobSpecTomlStr)
+		if err != nil {
 			return stacktrace.Propagate(err, "An error occurred deploying OCR job spec on oracle '%v'", serviceId)
 		}
-		logrus.Debugf("Successfully deployed OCR job spec on oracle '%v' referencing OCR contract address '%v'",
+		jobIds[serviceId] = jobId
+
+		logrus.Debugf("Successfully deployed OCR job spec on oracle '%v' referencing OCR contract address '%v', and got back job ID '%v'",
 			serviceId,
-			ocrContractAddr.Hex())
+			ocrContractAddr.Hex(),
+			jobId)
 	}
+
+	// Now, wait for jobs to complete successfully
+	logrus.Debugf("Waiting for oracle OCR jobs to complete...")
+	for serviceId, oracleService := range oracleServices {
+		jobId, found := jobIds[serviceId]
+		if !found {
+			return stacktrace.NewError("No OCR job ID found for oracle '%v' even though we just deployed it; this is a code bug", serviceId)
+		}
+
+		jobCompletedDeadline := time.Now().Add(timeToWaitForJobCompletion)
+		jobCompleted := false
+		for !jobCompleted && time.Now().Before(jobCompletedDeadline) {
+			runs, err := oracleService.GetRunsForJob(jobId)
+			if err != nil {
+				return stacktrace.Propagate(err, "An error occurred getting runs for the newly-deployed job '%v' on oracle '%v'", jobId, serviceId)
+			}
+			if len(runs) != 1 {
+				return stacktrace.NewError(
+					"Expected exactly one run for newly-deployed job '%v' on oracle '%v', but got %v",
+					jobId,
+					serviceId,
+					len(runs))
+			}
+			theRun := runs[0]
+			jobCompleted = theRun.Attributes.Status == jobCompletedStatus
+			if !jobCompleted {
+				time.Sleep(timeBetweenJobCompletionChecks)
+			}
+		}
+		if !jobCompleted {
+			return stacktrace.NewError(
+				"Newly-deployed OCR job '%v' on oracle '%v' didn't complete, even after waiting for %v",
+				jobId,
+				serviceId,
+				timeToWaitForJobCompletion)
+		}
+		logrus.Debugf("OCR job '%v' on oracle '%v' completed successfully", jobId, serviceId)
+	}
+
 	return nil
 }
 
@@ -825,12 +887,11 @@ func generateOcrJobSpecTomlStr(
 schemaVersion      = 1
 contractAddress    = "%v"
 p2pBootstrapPeers  = [
-	"/dns4/%v/tcp/%v/p2p/%v",
+	"/ip4/%v/tcp/%v/p2p/%v",
 ]
 p2pPeerID          = "%v"
 isBootstrapPeer    = %v
 keyBundleID        = "%v"
-monitoringEndpoint = "chain.link:4321"
 transmitterAddress = "%v"
 observationTimeout = "10s"
 blockchainTimeout  = "20s"

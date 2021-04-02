@@ -21,14 +21,14 @@ const (
 	isAvailableDialTimeout = time.Second
 
 	sessionsEndpoint = "sessions"
-	jobSpecsEndpoint = "v2/jobs"
+	jobsEndpoint     = "v2/jobs"
 
 	keysEndpoint = "v2/keys"
 	ethKeyEndpointSuffix = "eth"
 	ocrKeyEndpointSuffix = "ocr"
 	peerToPeerIdEndpointSuffix = "p2p"
 
-	runsEndpoint = "v2/runs"
+	jobRunsEndpointSuffix = "runs"
 
 	jsonMimeType = "application/json"
 
@@ -66,13 +66,18 @@ func (service *ChainlinkOracleService) GetIPAddress() string {
 	return service.serviceCtx.GetIPAddress()
 }
 
-func (service *ChainlinkOracleService) GetRuns() ([]Run, error) {
+func (service *ChainlinkOracleService) GetRunsForJob(jobId string) ([]Run, error) {
 	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
-	urlStr := fmt.Sprintf("http://%v:%v/%v",
-		service.GetIPAddress(), service.GetOperatorPort(), runsEndpoint)
+	urlStr := fmt.Sprintf(
+		"http://%v:%v/%v/%v/%v",
+		service.GetIPAddress(),
+		service.GetOperatorPort(),
+		jobsEndpoint,
+		jobId,
+		jobRunsEndpointSuffix)
 	response, err := client.Get(urlStr)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Failed to get runs information from Oracle.")
@@ -113,34 +118,34 @@ func (service *ChainlinkOracleService) GetOCRKeyBundles() ([]OracleOcrKeyBundle,
 }
 
 // TODO Replace the hand-crafted POST wtih a call to the Chainlink client.Client
-func (service *ChainlinkOracleService) SetJobSpec(tomlSpecStr string) error {
+func (service *ChainlinkOracleService) SetJobSpec(tomlSpecStr string) (string, error) {
 	client, err := service.getOrCreateClientWithSession()
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred getting the oracle session client")
+		return "", stacktrace.Propagate(err, "An error occurred getting the oracle session client")
 	}
 
 	jobSpecReq := CreateTomlJobRequest{TOML: tomlSpecStr}
 	serializedJobSpecReq, err := json.Marshal(jobSpecReq)
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred serializing the following job spec request object to JSON: %+v", jobSpecReq)
+		return "", stacktrace.Propagate(err, "An error occurred serializing the following job spec request object to JSON: %+v", jobSpecReq)
 	}
 	url := fmt.Sprintf(
 		"http://%v:%v/%v",
 		service.GetIPAddress(),
 		service.GetOperatorPort(),
-		jobSpecsEndpoint)
+		jobsEndpoint)
 
 	resp, err := client.Post(url, jsonMimeType, bytes.NewBuffer(serializedJobSpecReq))
 	if err != nil {
-		return stacktrace.Propagate(err, "Encountered an error trying to set job spec on the oracle")
+		return "", stacktrace.Propagate(err, "Encountered an error trying to set job spec on the oracle")
 	}
 	jobInitiatedResponse := new(OracleJobInitiatedResponse)
 	defer resp.Body.Close()
 
 	if err := parseAndLogResponse(resp, jobInitiatedResponse); err != nil {
-		return stacktrace.Propagate(err, "Failed to parse oracle response into a struct")
+		return "", stacktrace.Propagate(err, "Failed to parse oracle response into a struct")
 	}
-	return nil
+	return jobInitiatedResponse.Data.Id, nil
 }
 
 // ===========================================================================================
