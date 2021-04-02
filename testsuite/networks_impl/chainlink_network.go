@@ -1,6 +1,7 @@
 package networks_impl
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/hex"
 	"fmt"
@@ -50,7 +51,7 @@ const (
 	oracleEthPreFundingAmount = "10000000000000000000000000000"
 
 	// Number of oracle nodes (including bootstrapper)
-	numOracleNodes = 3
+	numOracleNodes = 5
 
 	// Oracle nodes will have multiple ETH keys/addresses
 	// This is the index of the transmitter address
@@ -61,6 +62,9 @@ const (
 	onChainSigningAddrStrPrefix = "ocrsad_"
 	offChainPublicKeyStrPrefix = "ocroff_"
 	configPublicKeyStrPrefix = "ocrcfg_"
+
+	maxNumCheckTransactionMinedRetries = 10
+	timeBetweenCheckTransactionMinedRetries = 1 * time.Second
 )
 
 type oracleIdentityWithKeyBundleId struct {
@@ -84,6 +88,7 @@ type ChainlinkNetwork struct {
 	priceFeedServerImage               string
 	priceFeedServer                    *price_feed_server.PriceFeedServer
 	priceFeedJobId                     string
+	ocrContract 					   *offchainaggregator.OffchainAggregator
 }
 
 func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifactId services.FilesArtifactID,
@@ -105,6 +110,7 @@ func NewChainlinkNetwork(networkCtx *networks.NetworkContext, gethDataDirArtifac
 		priceFeedServerImage:        priceFeedServerImage,
 		priceFeedServer:             nil,
 		priceFeedJobId:              "",
+		ocrContract:                 nil,
 	}
 }
 
@@ -236,7 +242,9 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 
 	logrus.Info("Configuring OCR contract with oracles...")
-	configureOcrContract(firstFundedAddrTransactor, ocrContract, oracleIdentities)
+	if err := configureOcrContract(firstFundedAddrTransactor, gethBootstrapperClient, ocrContract, oracleIdentities); err != nil {
+		return stacktrace.Propagate(err, "An error occurred configuring the OCR contract")
+	}
 	logrus.Info("Configured OCR contract")
 
 	logrus.Info("Setting job specs on oracles...")
@@ -260,6 +268,8 @@ func (network *ChainlinkNetwork) Setup() error {
 		return stacktrace.Propagate(err, "An error occurred deploying the OCR jobs on the oracles")
 	}
 	logrus.Info("Deployed OCR jobs on oracles")
+
+	network.ocrContract = ocrContract
 
 	return nil
 }
@@ -334,14 +344,11 @@ func (network *ChainlinkNetwork) RequestData() error {
 	}
 	return nil
 }
+
  */
 
-func (network *ChainlinkNetwork) GetLinkContractAddress() string {
-	return network.linkContractAddress
-}
-
-func (network *ChainlinkNetwork) GetChainlinkOracles() map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService {
-	return network.chainlinkOracleServices
+func (network ChainlinkNetwork) GetOCRContract() *offchainaggregator.OffchainAggregator {
+	return network.ocrContract
 }
 
 
@@ -482,6 +489,7 @@ func fundOracleEthAccounts(oracleServices map[services.ServiceID]*chainlink_orac
 		}
 		for _, ethKey := range ethKeys {
 			toAddress := ethKey.Attributes.Address
+			// TODO wait until this transaction is mined!
 			if err := gethService.SendTransaction(geth.FirstFundedAddressHex, toAddress, oracleEthPreFundingAmount); err != nil {
 				return stacktrace.Propagate(err, "An error occurred sending ETH to address '%v' owned by oracle '%v'", toAddress, serviceId)
 			}
@@ -520,16 +528,19 @@ func fundOracleEthAccounts(oracleServices map[services.ServiceID]*chainlink_orac
 // NOTE: Most of this method is copied from:
 //	https://github.com/smartcontractkit/chainlink/blob/51944ed3b3d0ea390998a3fffe33abaf2e15a711/core/internal/features_test.go#L1303
 func deployOcrOracleContract(validatorClient *ethclient.Client, sendingTransactor *bind.TransactOpts, sendingAddr common.Address, linkContractAddr common.Address) (ocrContractAddr common.Address, ocrContract *offchainaggregator.OffchainAggregator, resultErr error) {
-	accessControllerAddr, _, _, err := accesscontrolledoffchainaggregator.DeploySimpleWriteAccessController(sendingTransactor, validatorClient)
+	accessControllerAddr, accessControllerTxn, _, err := accesscontrolledoffchainaggregator.DeploySimpleWriteAccessController(sendingTransactor, validatorClient)
 	if err != nil {
 		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred deploying the access controller contract")
+	}
+	if err := waitUntilTransactionMined(validatorClient, accessControllerTxn.Hash()); err != nil {
+		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred waiting for the block with the access controller contract to be mined")
 	}
 
 	min, max := new(big.Int), new(big.Int)
 	min.Exp(big.NewInt(-2), big.NewInt(191), nil)
 	max.Exp(big.NewInt(2), big.NewInt(191), nil)
 	max.Sub(max, big.NewInt(1))
-	ocrContractAddress, _, ocrContract, err := offchainaggregator.DeployOffchainAggregator(
+	ocrContractAddress, ocrContractTxn, ocrContract, err := offchainaggregator.DeployOffchainAggregator(
 		sendingTransactor,                     // auth *bind.TransactOpts
 		validatorClient,                       // backend bind.ContractBackend
 		1000,                                  // _maximumGasPrice uint32,
@@ -548,7 +559,29 @@ func deployOcrOracleContract(validatorClient *ethclient.Client, sendingTransacto
 	if err != nil {
 		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred deploying the OCR contract")
 	}
+	if err := waitUntilTransactionMined(validatorClient, ocrContractTxn.Hash()); err != nil {
+		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred waiting for the block with the OCR contract to be mined")
+	}
 	return ocrContractAddress, ocrContract, nil
+}
+
+// If we try to use a contract immediately after submission without waiting for it to be mined, we'll get a "no contract code at address" error:
+// https://github.com/ethereum/go-ethereum/issues/15930#issuecomment-532144875
+func waitUntilTransactionMined(validatorClient *ethclient.Client, transactionHash common.Hash) error {
+	for i := 0; i < maxNumCheckTransactionMinedRetries; i++ {
+		receipt, err := validatorClient.TransactionReceipt(context.Background(), transactionHash)
+		if err == nil && receipt != nil && receipt.BlockNumber != nil {
+			return nil
+		}
+		if i < maxNumCheckTransactionMinedRetries - 1 {
+			time.Sleep(timeBetweenCheckTransactionMinedRetries)
+		}
+	}
+	return stacktrace.NewError(
+		"Transaction with hash '%v' wasn't mined even after checking %v times with %v between checks",
+		transactionHash.Hex(),
+		maxNumCheckTransactionMinedRetries,
+		timeBetweenCheckTransactionMinedRetries)
 }
 
 func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) (map[services.ServiceID]oracleIdentityWithKeyBundleId, error) {
@@ -630,6 +663,7 @@ func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle
 
 func configureOcrContract(
 		sendingTransactor *bind.TransactOpts,
+		validatorClient *ethclient.Client,
 		ocrContract *offchainaggregator.OffchainAggregator,
 		oracleIdentities map[services.ServiceID]oracleIdentityWithKeyBundleId) error {
 	oracleIdentitiesList := []confighelper.OracleIdentityExtra{}
@@ -647,15 +681,26 @@ func configureOcrContract(
 		return stacktrace.Propagate(err, "An error occurred generating the OCR contract SetConfig parameters")
 	}
 
-	if _, err := ocrContract.SetConfig(
+	setPayeesTxn, err := ocrContract.SetPayees(sendingTransactor, transmitters, transmitters)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred setting the payees for the OCR contract")
+	}
+	if err := waitUntilTransactionMined(validatorClient, setPayeesTxn.Hash()); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting until the transaction setting payees was mined")
+	}
+
+	setOcrConfigTxn, err := ocrContract.SetConfig(
 		sendingTransactor,
 		signers,
 		transmitters,
 		threshold,
 		encodedConfigVersion,
-		encodedConfig,
-	); err != nil {
+		encodedConfig)
+	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred calling SetConfig on the OCR contract")
+	}
+	if err := waitUntilTransactionMined(validatorClient, setOcrConfigTxn.Hash()); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting until the transaction configuring the OCR contract was mined")
 	}
 	return nil
 }
@@ -810,7 +855,7 @@ contractConfigConfirmations = 3`,
 		}
 		observationSourceStr := fmt.Sprintf(`observationSource = """
 	// data source 1
-	ds1          [type=%v method=POST url="%v" requestData="{}"];
+	ds1          [type=%v method=GET url="%v" requestData="{}"];
 	ds1_parse    [type=jsonparse path="USD"];
 	ds1_multiply [type=multiply times=10];
 

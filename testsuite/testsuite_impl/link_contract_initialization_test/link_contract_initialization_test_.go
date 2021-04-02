@@ -54,13 +54,45 @@ func (test *LinkContractInitializationTest) Setup(networkCtx *networks.NetworkCo
 }
 
 func (test *LinkContractInitializationTest) Run(network networks.Network, testCtx testsuite.TestContext) {
-	// TODO UNCOMMENT
 	// Necessary because Go doesn't have generics
-	// _ := network.(*networks_impl.ChainlinkNetwork)
+	 chainlinkNetwork := network.(*networks_impl.ChainlinkNetwork)
 
-	// TODO request data using the price feed server
+	/*
+	oracleEthAccounts, err := network.chainlinkOracleServices[0].GetEthKeys()
+	if err != nil {
+		return stacktrace.Propagate(err, "Error occurred requesting ethereum key information.")
+	}
 
-	logrus.Infof("Oracle successfully ran job accessing a remote price feed URL.")
+	for _, ethAccount := range oracleEthAccounts {
+		ethAddress := ethAccount.Attributes.Address
+		logrus.Infof("Setting permissions for address %v to run code from oracle contract %v.",
+			ethAddress,
+			network.oracleContractAddress)
+		err = network.linkContractDeployerService.SetFulfillmentPermissions(
+			network.GetBootstrapper().GetIPAddress(),
+			strconv.Itoa(network.GetBootstrapper().GetRpcPort()),
+			network.oracleContractAddress,
+			ethAddress,
+		)
+		if err != nil {
+			return stacktrace.Propagate(err, "Error occurred setting fulfillent permissions.")
+		}
+	}
+
+	 */
+
+	// TODO DEBUGGING to show the call clearly in the logs
+	time.Sleep(5 * time.Second)
+
+	logrus.Infof("Calling OCR contract...")
+	ocrContract := chainlinkNetwork.GetOCRContract()
+	answer, err := ocrContract.LatestAnswer(nil)
+	if err != nil {
+		testCtx.Fatal(stacktrace.Propagate(err, "An error occurred getting the latest answer from the OCR contract"))
+	}
+	logrus.Info("Called OCR contract")
+
+	logrus.Infof("Answer: %v", answer)
 }
 
 

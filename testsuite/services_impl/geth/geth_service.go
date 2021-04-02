@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -19,6 +20,8 @@ const (
 	adminPeerRpcCall = `{"jsonrpc":"2.0", "method": "admin_peers","params":[],"id":67}`
 	enodePrefix = "enode://"
 	ipcPath = "ipc:/data/geth.ipc"
+
+	rpcRequestTimeout = 30 * time.Second
 )
 
 type GethService struct {
@@ -144,7 +147,12 @@ func (service GethService) sendRpcCall(rpcJsonString string, targetStruct interf
 	url := fmt.Sprintf("http://%v:%v", service.serviceCtx.GetIPAddress(), rpcPort)
 	var jsonByteArray = []byte(rpcJsonString)
 
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonByteArray))
+	logrus.Debugf("Sending RPC call to '%v' with JSON body '%v'...", url, rpcJsonString)
+	// TODO reuse this client
+	client := http.Client{
+		Timeout:       rpcRequestTimeout,
+	}
+	resp, err := client.Post(url, "application/json", bytes.NewBuffer(jsonByteArray))
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to send RPC request to geth node %v", service.serviceCtx.GetServiceID())
 	}
