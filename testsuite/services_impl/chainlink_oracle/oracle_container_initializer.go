@@ -2,6 +2,7 @@ package chainlink_oracle
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth/genesis"
@@ -38,16 +39,16 @@ const (
 
 type ChainlinkOracleInitializer struct {
 	dockerImage         string
-	linkContractAddress string
-	oracleContractAddress string
+	linkContractAddress common.Address
+	oracleContractAddress common.Address
 	gethClient	*geth.GethService
 	postgresService	*postgres.PostgresService
 }
 
 func NewChainlinkOracleContainerInitializer(
 		dockerImage string,
-		linkContractAddress string,
-		oracleContractAddress string,
+		linkContractAddress common.Address,
+		oracleContractAddress common.Address,
 		gethClient *geth.GethService,
 		postgresService *postgres.PostgresService) *ChainlinkOracleInitializer {
 	return &ChainlinkOracleInitializer{
@@ -92,8 +93,8 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"ETH_GAS_PRICE_DEFAULT": strconv.Itoa(gasPriceDefault),
 		"ETH_GAS_BUMP_THRESHOLD": strconv.Itoa(gasPriceBumpThreshold),
 		"ETH_GAS_BUMP_WEI": ethGasBumpWei,
-		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress,
-		"OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress,
+		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress.Hex(),
+		"OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress.Hex(),
 		"CHAINLINK_TLS_PORT": "0",
 		"SECURE_COOKIES": "false",
 		"GAS_UPDATER_ENABLED": "true",

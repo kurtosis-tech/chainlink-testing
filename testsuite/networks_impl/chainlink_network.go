@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/networks"
 	"github.com/kurtosis-tech/kurtosis-libs/golang/lib/services"
+	"github.com/kurtosistech/chainlink-testing/testsuite/networks_impl/config"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_contract_deployer"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/chainlink_oracle"
 	"github.com/kurtosistech/chainlink-testing/testsuite/services_impl/geth"
@@ -19,11 +20,10 @@ import (
 	"github.com/palantir/stacktrace"
 	"github.com/sirupsen/logrus"
 	"github.com/smartcontractkit/libocr/gethwrappers/accesscontrolledoffchainaggregator"
+	"github.com/smartcontractkit/libocr/gethwrappers/link_token_interface"
 	"github.com/smartcontractkit/libocr/gethwrappers/offchainaggregator"
-	"github.com/smartcontractkit/libocr/offchainreporting/confighelper"
 	"github.com/smartcontractkit/libocr/offchainreporting/types"
 	"math/big"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -34,6 +34,9 @@ const (
 	postgresIdPrefix        = "postgres-"
 	priceFeedServerId       services.ServiceID = "price-feed-server"
 	chainlinkOracleIdPrefix = "chainlink-oracle-"
+
+	// TODO Rename
+	gethBootstrapperLinkFundAmount = 1000000000000
 
 	jobCompletedStatus      string             = "completed"
 
@@ -57,7 +60,7 @@ const (
 	priceFeedTimeBetweenIsAvailablePolls = 1 * time.Second
 	priceFeedMaxIsAvailablePolls = 10
 
-	maxNumGethValidatorConnectednessVerifications = 3
+	maxNumGethValidatorConnectednessVerifications = 10
 	timeBetweenGethValidatorConnectednessVerifications = 1 * time.Second
 
 	waitForFundingFinalizationTime = 60 * time.Second
@@ -81,9 +84,10 @@ const (
 	timeBetweenCheckTransactionMinedRetries = 1 * time.Second
 )
 
-type oracleIdentityWithKeyBundleId struct {
-	inner confighelper.OracleIdentityExtra
+type oracleIdentityWithExtraInfo struct {
+	inner config.OracleIdentity
 	ocrKeyBundleId string
+	sharedSecretEncryptionPublicKey types.SharedSecretEncryptionPublicKey
 }
 
 type ChainlinkNetwork struct {
@@ -163,6 +167,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	logrus.Infof("Ethereum nodes connected and connectivity verified")
 
 	// TODO rename this
+	/*
 	logrus.Info("Starting contract deployer service...")
 	contractDeployerService, err := startContractDeployerService(network.networkCtx, network.linkContractDeployerImage)
 	if err != nil {
@@ -186,6 +191,29 @@ func (network *ChainlinkNetwork) Setup() error {
 		return stacktrace.Propagate(err, "An error occurred funding an initial LINK wallet on the testnet")
 	}
 	logrus.Info("LINK wallet funded")
+	 */
+
+	// TODO REFACTOR INTO METHOD
+	logrus.Info("Deploying LINK token contract...")
+	linkContractAddress, linkContractTxn, linkContract, err := link_token_interface.DeployLinkToken(firstFundedAddrTransactor, gethBootstrapperClient)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred deploying the LINK token contract")
+	}
+	if err := waitUntilTransactionMined(gethBootstrapperClient, linkContractTxn.Hash()); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for the LINK token contract to be mined")
+	}
+	logrus.Info("Deployed LINK token contract")
+
+	logrus.Info("Deploying OCR oracle contract...")
+	ocrContractAddr, ocrContract, err := deployOcrOracleContract(
+		gethBootstrapperClient,
+		firstFundedAddrTransactor,
+		firstFundedAddr,
+		linkContractAddress)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred deploying the OCR contract")
+	}
+	logrus.Info("Deployed OCR oracle contract")
 
 	logrus.Info("Adding Postgres nodes for oracles...")
 	postgresServices, err := addPostgresServices(network.networkCtx, network.postgresImage, numOracleNodes)
@@ -198,7 +226,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	oracleServices, oracleBootstrapperServiceId, err := addOracleService(
 		network.networkCtx,
 		linkContractAddress,
-		oracleContractAddress,
+		ocrContractAddr,
 		gethBootstrapper,
 		network.chainlinkOracleImage,
 		postgresServices)
@@ -213,16 +241,6 @@ func (network *ChainlinkNetwork) Setup() error {
 		return stacktrace.Propagate(err, "An error occurred funding the oracle ETH accounts")
 	}
 	logrus.Info("Funded oracle ETH addresses")
-
-	logrus.Info("Deploying OCR oracle contract...")
-	ocrContractAddr, ocrContract, err := deployOcrOracleContract(
-		gethBootstrapperClient,
-		firstFundedAddrTransactor,
-		firstFundedAddr,
-		common.HexToAddress(linkContractAddress))
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred deploying the OCR contract")
-	}
 
 	logrus.Info("Getting oracle identities...")
 	oracleIdentities, err := getOracleIdentities(oracleServices)
@@ -258,8 +276,46 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 	logrus.Info("Deployed OCR jobs on oracles")
 
-	// TODO DEBUGGING
-	time.Sleep(20)
+	logrus.Info("Funding data requester address...")
+	linkFundingTxn, err := linkContract.Transfer(firstFundedAddrTransactor, firstFundedAddr, big.NewInt(gethBootstrapperLinkFundAmount))
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred funding the first funded address with LINK")
+	}
+	if err := waitUntilTransactionMined(gethBootstrapperClient, linkFundingTxn.Hash()); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting for the transaction that funds the first funded address with LINK to be finalized")
+	}
+	logrus.Info("Data requester address funded")
+
+	// TODO DEBUGGINNG
+	contractOpts := &bind.CallOpts{
+		From:        firstFundedAddr,
+	}
+	for {
+		answer, err := ocrContract.LatestAnswer(contractOpts)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the latest answer: %v", err)
+		} else {
+			logrus.Debugf("Latest answer: %v", answer.String())
+		}
+		round, err := ocrContract.LatestRound(contractOpts)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the latest round: %v", err)
+		} else {
+			logrus.Debugf("Latest round: %v", round.String())
+		}
+		/*
+			for serviceId, oracleService := range oracleServices {
+				jobId := jobIds[serviceId]
+				runs, err := oracleService.GetRunsForJob(jobId)
+				if err != nil {
+					logrus.Debugf("An error occurred getting runs for the newly-deployed job '%v' on oracle '%v': %v", jobId, serviceId, err)
+				}
+				logrus.Debugf("Runs for job %v for oracle %v: %+v", jobId, serviceId, runs)
+			}
+
+		*/
+		time.Sleep(5 * time.Second)
+	}
 
 	network.ocrContract = ocrContract
 
@@ -457,8 +513,8 @@ func addPostgresServices(networkCtx *networks.NetworkContext, dockerImage string
 
 func addOracleService(
 		networkCtx *networks.NetworkContext,
-		linkContractAddr string,
-		oracleContractAddr string,
+		linkContractAddr common.Address,
+		oracleContractAddr common.Address,
 		gethService *geth.GethService,
 		dockerImage string,
 		postgresServices []*postgres.PostgresService) (map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService, services.ServiceID, error) {
@@ -603,8 +659,8 @@ func waitUntilTransactionMined(validatorClient *ethclient.Client, transactionHas
 		timeBetweenCheckTransactionMinedRetries)
 }
 
-func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) (map[services.ServiceID]oracleIdentityWithKeyBundleId, error) {
-	oracleIdentities := map[services.ServiceID]oracleIdentityWithKeyBundleId{}
+func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService) (map[services.ServiceID]oracleIdentityWithExtraInfo, error) {
+	oracleIdentities := map[services.ServiceID]oracleIdentityWithExtraInfo{}
 	for serviceId, oracleService := range oracleServices {
 		// TODO Replace alllllll the handcrafting of OracleIdentityExtra inside here with a call to the Chainlink client
 		//  The desired method is likely client.Client.ListOCRKeyBundles
@@ -662,16 +718,14 @@ func getOracleIdentities(oracleServices map[services.ServiceID]*chainlink_oracle
 		var sharedSecretEncryptionPubKey types.SharedSecretEncryptionPublicKey
 		copy(sharedSecretEncryptionPubKey[:], configPubKey)
 
-		identity := oracleIdentityWithKeyBundleId{
-			inner: confighelper.OracleIdentityExtra{
-				OracleIdentity:            confighelper.OracleIdentity{
-					OnChainSigningAddress: onChainSigningAddr,
-					TransmitAddress:       transmitterAddr,
-					OffchainPublicKey:     types.OffchainPublicKey(offChainPubKey),
-					PeerID:                strings.TrimPrefix(p2pKey.Attributes.PeerId, p2pIdStrPrefix),
-				},
-				SharedSecretEncryptionPublicKey: sharedSecretEncryptionPubKey,
+		identity := oracleIdentityWithExtraInfo{
+			inner: config.OracleIdentity{
+				OnChainSigningAddress: onChainSigningAddr,
+				TransmitAddress:       transmitterAddr,
+				OffchainPublicKey:     types.OffchainPublicKey(offChainPubKey),
+				PeerID:                strings.TrimPrefix(p2pKey.Attributes.PeerId, p2pIdStrPrefix),
 			},
+			sharedSecretEncryptionPublicKey: sharedSecretEncryptionPubKey,
 			ocrKeyBundleId: ocrKeyBundle.Attributes.Id,
 		}
 
@@ -689,20 +743,39 @@ func configureOcrContract(
 		sendingTransactor *bind.TransactOpts,
 		validatorClient *ethclient.Client,
 		ocrContract *offchainaggregator.OffchainAggregator,
-		oracleIdentities map[services.ServiceID]oracleIdentityWithKeyBundleId) error {
-	oracleIdentitiesList := []confighelper.OracleIdentityExtra{}
+		oracleIdentities map[services.ServiceID]oracleIdentityWithExtraInfo) error {
+	S := []int{}
+	oracleIdentitiesList := []config.OracleIdentity{}
+	sharedSecretEncryptionPublicKeys := []types.SharedSecretEncryptionPublicKey{}
 	for _, identity := range oracleIdentities {
+		S = append(S, 1) // No idea what this is; it's just copied from https://github.com/smartcontractkit/libocr/blob/master/offchainreporting/confighelper/confighelper.go#L115
 		oracleIdentitiesList = append(oracleIdentitiesList, identity.inner)
+
+		sharedSecretEncryptionPublicKeys = append(sharedSecretEncryptionPublicKeys, identity.sharedSecretEncryptionPublicKey)
 	}
 
-	// Params for this method are copied from https://github.com/smartcontractkit/chainlink/blob/51944ed3b3d0ea390998a3fffe33abaf2e15a711/core/internal/features_test.go#L1416
-	signers, transmitters, threshold, encodedConfigVersion, encodedConfig, err := confighelper.ContractSetConfigArgsForIntegrationTest(
-		oracleIdentitiesList,
-		1, // F
-		1000000000/100, // threshold PPB
-	)
+	// Most of these values are copied from:
+	// https://github.com/smartcontractkit/libocr/blob/master/offchainreporting/confighelper/confighelper.go#L115
+	sharedConfig := config.SharedConfig{
+		config.PublicConfig{
+			DeltaProgress:    45 * time.Second,
+			DeltaResend:      10 * time.Second,
+			DeltaRound:       20 * time.Second,
+			DeltaGrace:       10 * time.Second,
+			DeltaC:           120 * time.Second,
+			AlphaPPB:         10000000,
+			DeltaStage:       30 * time.Second,
+			RMax:             4,
+			S:                S,
+			OracleIdentities: oracleIdentitiesList,
+			F:                1,
+			ConfigDigest:     types.ConfigDigest{},
+		},
+		&[config.SharedSecretSize]byte{1, 2, 3, 4, 5, 6, 7, 8, 1, 2, 3, 4, 5, 6, 7, 8},
+	}
+	signers, transmitters, threshold, encodedConfigVersion, encodedConfig, err := config.XXXContractSetConfigArgsFromSharedConfig(sharedConfig, sharedSecretEncryptionPublicKeys)
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred generating the OCR contract SetConfig parameters")
+		return stacktrace.Propagate(err, "An error occurred creating the contract config args")
 	}
 
 	setPayeesTxn, err := ocrContract.SetPayees(sendingTransactor, transmitters, transmitters)
@@ -746,7 +819,7 @@ func deployOcrJobsOnOracles(
 		bootstrapperServiceId services.ServiceID,
 		bootstrapperService *chainlink_oracle.ChainlinkOracleService,
 		oracleServices map[services.ServiceID]*chainlink_oracle.ChainlinkOracleService,
-		oracleIdentities map[services.ServiceID]oracleIdentityWithKeyBundleId,
+		oracleIdentities map[services.ServiceID]oracleIdentityWithExtraInfo,
 		datasourceUrl string) error {
 	bootstrapperIdentity, found := oracleIdentities[bootstrapperServiceId]
 	if !found {
@@ -789,33 +862,6 @@ func deployOcrJobsOnOracles(
 			jobId)
 	}
 
-	// TODO DEBUGGINNG
-	for {
-		answer, err := ocrContract.LatestAnswer(nil)
-		if err != nil {
-			logrus.Debugf("An error occurred getting the latest answer: %v", err)
-		} else {
-			logrus.Debugf("Latest answer: %v", answer)
-		}
-		round, err := ocrContract.LatestRound(nil)
-		if err != nil {
-			logrus.Debugf("An error occurred getting the latest round: %v", err)
-		} else {
-			logrus.Debugf("Latest round: %v", round)
-		}
-		/*
-		for serviceId, oracleService := range oracleServices {
-			jobId := jobIds[serviceId]
-			runs, err := oracleService.GetRunsForJob(jobId)
-			if err != nil {
-				logrus.Debugf("An error occurred getting runs for the newly-deployed job '%v' on oracle '%v': %v", jobId, serviceId, err)
-			}
-			logrus.Debugf("Runs for job %v for oracle %v: %+v", jobId, serviceId, runs)
-		}
-
-		 */
-		time.Sleep(5 * time.Second)
-	}
 
 	/*
 		// Now, wait for jobs to complete successfully
@@ -922,6 +968,8 @@ func generateOcrJobSpecTomlStr(
 	// TODO Modify the tcp port for the p2pBootstrapPeers??
 	// TODO Replace this string with an actual structured object from https://github.com/smartcontractkit/chainlink/blob/2f2dc24f3ef6a63a47d7a3a4d2c23239d89555c0/core/services/job/models.go#L101
 
+	// Values not being used:
+	// contractConfigTrackerSubscribeInterval = "2m"
 	result := fmt.Sprintf(
 		`type               = "offchainreporting"
 schemaVersion      = 1
@@ -933,11 +981,10 @@ p2pPeerID          = "%v"
 isBootstrapPeer    = %v
 keyBundleID        = "%v"
 transmitterAddress = "%v"
-observationTimeout = "10s"
-blockchainTimeout  = "20s"
-contractConfigTrackerSubscribeInterval = "2m"
-contractConfigTrackerPollInterval = "1m"
-contractConfigConfirmations = 3`,
+observationTimeout = "3s"   # This must be in range [1s,20s]
+blockchainTimeout = "20s"
+contractConfigTrackerPollInterval = "15s"
+contractConfigConfirmations = 1`,
 		oracleContractAddress.Hex(),
 		bootstrapIpAddr,
 		bootstrapPeerToPeerListenPort,
