@@ -18,8 +18,25 @@ COPY . .
 
 RUN go test ./...
 
-# Build the application
 RUN GOOS=linux go build -o testsuite.bin testsuite/main.go
+
+# # TODO DEBUGGING
+# RUN go install github.com/go-delve/delve/cmd/dlv
+#
+# # TODO DEBUGGING
+# # Build the application
+# # RUN GOOS=linux go build -o testsuite.bin testsuite/main.go
+# RUN GOOS=linux go build -gcflags "all=-N -l" -o testsuite.bin testsuite/main.go
+#
+# # TODO DEBUGGING
+# CMD ["sh", "-c", "dlv --listen=:\"${DEBUGGER_PORT}\" --headless=true --api-version=2 exec \
+#     ./testsuite.bin \
+#     -- \
+#     --custom-params-json=\"${CUSTOM_PARAMS_JSON}\" \
+#     --kurtosis-api-socket=\"${KURTOSIS_API_SOCKET}\" \
+#     --log-level=\"${LOG_LEVEL}\""]
+
+
 
 # ============= Execution Stage ================
 FROM alpine:3.12 AS execution

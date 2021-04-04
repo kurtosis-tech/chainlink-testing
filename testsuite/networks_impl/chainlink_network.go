@@ -60,6 +60,8 @@ const (
 	priceFeedTimeBetweenIsAvailablePolls = 1 * time.Second
 	priceFeedMaxIsAvailablePolls = 10
 
+	ocrContractLinkFundingAmount = 10000000
+
 	maxNumGethValidatorConnectednessVerifications = 10
 	timeBetweenGethValidatorConnectednessVerifications = 1 * time.Second
 
@@ -215,6 +217,16 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 	logrus.Info("Deployed OCR oracle contract")
 
+	logrus.Info("Funding OCR contract with LINK...")
+	ocrFundingTxn, err := linkContract.Transfer(firstFundedAddrTransactor, ocrContractAddr, big.NewInt(ocrContractLinkFundingAmount))
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred funding the OCR contract with LINK")
+	}
+	if err := waitUntilTransactionMined(gethBootstrapperClient, ocrFundingTxn.Hash()); err != nil {
+		return stacktrace.Propagate(err, "An error occurred waiting until the fund-OCR-contract-with-LINK transaction was mined")
+	}
+	logrus.Info("Funded OCR contract with LINK")
+
 	logrus.Info("Adding Postgres nodes for oracles...")
 	postgresServices, err := addPostgresServices(network.networkCtx, network.postgresImage, numOracleNodes)
 	if err != nil {
@@ -286,11 +298,31 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 	logrus.Info("Data requester address funded")
 
+
 	// TODO DEBUGGINNG
 	contractOpts := &bind.CallOpts{
 		From:        firstFundedAddr,
 	}
 	for {
+		ocrContractLinkBalance, err := linkContract.BalanceOf(nil, ocrContractAddr)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the LINK balance of the OCR contract")
+		} else {
+			logrus.Debugf("OCR contract LINK balance: %v", ocrContractLinkBalance)
+		}
+		transactorLinkBalance, err := linkContract.BalanceOf(nil, firstFundedAddr)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the LINK balance of address '%v'", firstFundedAddr.Hex())
+		} else {
+			logrus.Debugf("First funded address LINK balance: %v", transactorLinkBalance)
+		}
+		transactorEthBalance, err := gethBootstrapperClient.BalanceAt(context.Background(), firstFundedAddr, nil)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the ETH balance of address '%v'", firstFundedAddr.Hex())
+		} else {
+			logrus.Debugf("First funded address ETH balance: %v", transactorEthBalance)
+		}
+
 		answer, err := ocrContract.LatestAnswer(contractOpts)
 		if err != nil {
 			logrus.Debugf("An error occurred getting the latest answer: %v", err)
@@ -302,6 +334,20 @@ func (network *ChainlinkNetwork) Setup() error {
 			logrus.Debugf("An error occurred getting the latest round: %v", err)
 		} else {
 			logrus.Debugf("Latest round: %v", round.String())
+		}
+		for serviceId, identity := range oracleIdentities {
+			ethBalance, err := gethBootstrapperClient.BalanceAt(context.Background(), identity.inner.TransmitAddress, nil)
+			if err != nil {
+				logrus.Debugf("An error occurred getting the ETH balance for node '%v': %v", serviceId, err)
+			} else {
+				logrus.Debugf("%v ETH balance: %v", serviceId, ethBalance)
+			}
+			linkBalance, err := linkContract.BalanceOf(nil, common.Address(identity.inner.TransmitAddress))
+			if err != nil {
+				logrus.Debugf("An error occurred getting the LINK balance for node '%v': %v", serviceId, err)
+			} else {
+				logrus.Debugf("%v LINK balance: %v", serviceId, linkBalance)
+			}
 		}
 		/*
 			for serviceId, oracleService := range oracleServices {
@@ -758,14 +804,15 @@ func configureOcrContract(
 	// https://github.com/smartcontractkit/libocr/blob/master/offchainreporting/confighelper/confighelper.go#L115
 	sharedConfig := config.SharedConfig{
 		config.PublicConfig{
+			// These values roughly informed by the whitepaper
 			DeltaProgress:    45 * time.Second,
-			DeltaResend:      10 * time.Second,
-			DeltaRound:       20 * time.Second,
-			DeltaGrace:       10 * time.Second,
-			DeltaC:           120 * time.Second,
-			AlphaPPB:         10000000,
+			DeltaResend:      15 * time.Second,
+			DeltaRound:       30 * time.Second,
+			DeltaGrace:       5 * time.Second,
+			DeltaC:           60 * time.Minute,   // How frequently new reports will be issued due to timeout
+			AlphaPPB:         10000000,   // Deviation value from old observation for new report to be uploaded
 			DeltaStage:       30 * time.Second,
-			RMax:             4,
+			RMax:             4, // Max number of rounds in epoch
 			S:                S,
 			OracleIdentities: oracleIdentitiesList,
 			F:                1,
