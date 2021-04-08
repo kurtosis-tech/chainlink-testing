@@ -36,7 +36,7 @@ const (
 	chainlinkOracleIdPrefix = "chainlink-oracle-"
 
 	// TODO Rename
-	gethBootstrapperLinkFundAmount = 1000000000000
+	ocrContractLinkFundAmount = 1000000000000000000
 
 	jobCompletedStatus      string             = "completed"
 
@@ -59,8 +59,6 @@ const (
 	oracleMaxIsAvailablePolls = 120
 	priceFeedTimeBetweenIsAvailablePolls = 1 * time.Second
 	priceFeedMaxIsAvailablePolls = 10
-
-	ocrContractLinkFundingAmount = 10000000
 
 	maxNumGethValidatorConnectednessVerifications = 10
 	timeBetweenGethValidatorConnectednessVerifications = 1 * time.Second
@@ -218,7 +216,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	logrus.Info("Deployed OCR oracle contract")
 
 	logrus.Info("Funding OCR contract with LINK...")
-	ocrFundingTxn, err := linkContract.Transfer(firstFundedAddrTransactor, ocrContractAddr, big.NewInt(ocrContractLinkFundingAmount))
+	ocrFundingTxn, err := linkContract.Transfer(firstFundedAddrTransactor, ocrContractAddr, big.NewInt(ocrContractLinkFundAmount))
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred funding the OCR contract with LINK")
 	}
@@ -288,6 +286,7 @@ func (network *ChainlinkNetwork) Setup() error {
 	}
 	logrus.Info("Deployed OCR jobs on oracles")
 
+	/*
 	logrus.Info("Funding data requester address...")
 	linkFundingTxn, err := linkContract.Transfer(firstFundedAddrTransactor, firstFundedAddr, big.NewInt(gethBootstrapperLinkFundAmount))
 	if err != nil {
@@ -297,6 +296,7 @@ func (network *ChainlinkNetwork) Setup() error {
 		return stacktrace.Propagate(err, "An error occurred waiting for the transaction that funds the first funded address with LINK to be finalized")
 	}
 	logrus.Info("Data requester address funded")
+	 */
 
 
 	// TODO DEBUGGINNG
@@ -323,18 +323,20 @@ func (network *ChainlinkNetwork) Setup() error {
 			logrus.Debugf("First funded address ETH balance: %v", transactorEthBalance)
 		}
 
+		transmission, err := ocrContract.LatestTransmissionDetails(nil)
+		if err != nil {
+			logrus.Debugf("An error occurred getting the latest transmission info: %v", err)
+		} else {
+			logrus.Debugf("Latest transmission: %+v", transmission)
+		}
+
 		answer, err := ocrContract.LatestAnswer(contractOpts)
 		if err != nil {
 			logrus.Debugf("An error occurred getting the latest answer: %v", err)
 		} else {
 			logrus.Debugf("Latest answer: %v", answer.String())
 		}
-		round, err := ocrContract.LatestRound(contractOpts)
-		if err != nil {
-			logrus.Debugf("An error occurred getting the latest round: %v", err)
-		} else {
-			logrus.Debugf("Latest round: %v", round.String())
-		}
+
 		for serviceId, identity := range oracleIdentities {
 			ethBalance, err := gethBootstrapperClient.BalanceAt(context.Background(), identity.inner.TransmitAddress, nil)
 			if err != nil {
@@ -657,6 +659,7 @@ func deployOcrOracleContract(validatorClient *ethclient.Client, sendingTransacto
 		return common.Address{}, nil, stacktrace.Propagate(err, "An error occurred waiting for the block with the access controller contract to be mined")
 	}
 
+
 	min, max := new(big.Int), new(big.Int)
 	min.Exp(big.NewInt(-2), big.NewInt(191), nil)
 	max.Exp(big.NewInt(2), big.NewInt(191), nil)
@@ -805,11 +808,11 @@ func configureOcrContract(
 	sharedConfig := config.SharedConfig{
 		config.PublicConfig{
 			// These values roughly informed by the whitepaper
-			DeltaProgress:    45 * time.Second,
-			DeltaResend:      15 * time.Second,
-			DeltaRound:       30 * time.Second,
-			DeltaGrace:       5 * time.Second,
-			DeltaC:           60 * time.Minute,   // How frequently new reports will be issued due to timeout
+			DeltaProgress:    30 * time.Second,
+			DeltaResend:      10 * time.Second,
+			DeltaRound:       15 * time.Second,
+			DeltaGrace:       2 * time.Second,
+			DeltaC:           120 * time.Minute,   // How frequently new reports will be issued due to timeout
 			AlphaPPB:         10000000,   // Deviation value from old observation for new report to be uploaded
 			DeltaStage:       30 * time.Second,
 			RMax:             4, // Max number of rounds in epoch
@@ -1028,10 +1031,12 @@ p2pPeerID          = "%v"
 isBootstrapPeer    = %v
 keyBundleID        = "%v"
 transmitterAddress = "%v"
-observationTimeout = "3s"   # This must be in range [1s,20s]
+maxTaskDuration = "11s"
+observationTimeout = "13s"   # This must be in range [1s,20s]
 blockchainTimeout = "20s"
-contractConfigTrackerPollInterval = "15s"
-contractConfigConfirmations = 1`,
+contractConfigTrackerPollInterval = "1m"
+contractConfigTrackerSubscribeInterval = "2m"
+contractConfigConfirmations = 3`,
 		oracleContractAddress.Hex(),
 		bootstrapIpAddr,
 		bootstrapPeerToPeerListenPort,

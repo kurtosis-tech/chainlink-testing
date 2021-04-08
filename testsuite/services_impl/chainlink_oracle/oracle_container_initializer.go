@@ -24,7 +24,7 @@ const (
 	gasUpdaterDelay = 1
 	gasPriceBumpThreshold = 2
 	ethGasBumpWei = "100000000000000000000"
-	gasPriceDefault = 100
+	gasPriceDefault = 1000000000
 	minOutgoingConfirmations = 12
 	minIncomingConfirmations = 0
 
@@ -94,13 +94,17 @@ func (initializer ChainlinkOracleInitializer) GetEnvironmentVariableOverrides() 
 		"ETH_GAS_BUMP_THRESHOLD": strconv.Itoa(gasPriceBumpThreshold),
 		"ETH_GAS_BUMP_WEI": ethGasBumpWei,
 		"LINK_CONTRACT_ADDRESS": initializer.linkContractAddress.Hex(),
-		"OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress.Hex(),
+		// TODO DEBUGGING
+		// "OPERATOR_CONTRACT_ADDRESS": initializer.oracleContractAddress.Hex(),
+		"CHAINLINK_DEV": "true", // TODO Testing this out with Brandon
 		"CHAINLINK_TLS_PORT": "0",
 		"SECURE_COOKIES": "false",
-		"GAS_UPDATER_ENABLED": "true",
+		"MINIMUM_CONTRACT_PAYMENT": "0", // TODO Testing this out with Brandon
+		"GAS_UPDATER_ENABLED": "false",
 		"GAS_UPDATER_BLOCK_DELAY": strconv.Itoa(gasUpdaterDelay),
 		"ALLOW_ORIGINS":"*",
 		"FEATURE_OFFCHAIN_REPORTING": strconv.FormatBool(isOffchainReportingEnabled),
+		"OCR_TRACE_LOGGING": "true", // TODO testing with Brandon
 		"P2P_LISTEN_PORT": strconv.Itoa(peer2PeerListenPort), // Required when offchain reporting == true
 		"ETH_URL": fmt.Sprintf("ws://%v:%v", initializer.gethClient.GetIPAddress(), initializer.gethClient.GetWsPort()),
 		"DATABASE_URL": fmt.Sprintf("postgresql://%v:%v@%v:%v/%v?sslmode=disable",
@@ -139,9 +143,11 @@ func (initializer ChainlinkOracleInitializer) GetStartCommandOverrides(mountedFi
 	entrypointArgs = []string{
 		"/bin/bash",
 		"-c",
-		fmt.Sprintf("chainlink local n -p %v -a %v",
+		fmt.Sprintf("chainlink local n -p %v -a %v 2>&1 | tee %v/%v.log",
 			fmt.Sprintf(mountedFileFilepaths[passwordFileKey]),
 			fmt.Sprintf(mountedFileFilepaths[apiFileKey]),
+			geth.TestVolumeMountpoint,
+			ipAddr,
 		),
 	}
 

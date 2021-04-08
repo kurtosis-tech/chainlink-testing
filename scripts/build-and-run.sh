@@ -30,7 +30,7 @@ fi
 custom_params_json='{
     "gethServiceImage" :"ethereum/client-go:latest",
     "chainlinkContractDeployerImage": "kurtosistech/chainlink-contract-deployer:latest",
-    "chainlinkOracleImage": "smartcontract/chainlink:0.10.2",
+    "chainlinkOracleImage": "smartcontract/chainlink:candidate-0.10.4-rc1",
     "postgresImage": "postgres:13.2",
     "priceFeedServerImage": "kurtosistech/chainlink-price-feed-server:latest",
     "isKurtosisCoreDevMode": false
